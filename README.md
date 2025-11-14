@@ -60,6 +60,8 @@ Run the following SQL scripts in your Supabase SQL Editor (in order):
 ### 5. Google Analytics 4 Setup
 
 1. **Service Account**: Place your GA4 service account JSON file as `service-key.json` in the project root
+   - ⚠️ **Important**: This file contains sensitive credentials and should NEVER be committed to Git
+   - The file is already in `.gitignore` for your protection
 
 2. **Generate Access Token** (needed daily):
    ```bash
