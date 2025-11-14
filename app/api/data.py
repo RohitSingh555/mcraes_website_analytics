@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timedelta
 from app.services.supabase_service import SupabaseService
 from app.services.ga4_client import GA4APIClient
+from app.services.agency_analytics_client import AgencyAnalyticsClient
 
 logger = logging.getLogger(__name__)
 
@@ -501,5 +502,296 @@ async def get_brands_with_ga4():
         }
     except Exception as e:
         logger.error(f"Error fetching brands with GA4: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# =====================================================
+# Agency Analytics Data Endpoints
+# =====================================================
+
+@router.get("/data/agency-analytics/campaigns")
+async def get_agency_analytics_campaigns():
+    """Get all Agency Analytics campaigns from database"""
+    try:
+        supabase = SupabaseService()
+        result = supabase.client.table("agency_analytics_campaigns").select("*").order("id", desc=True).execute()
+        campaigns = result.data if hasattr(result, 'data') else []
+        
+        return {
+            "campaigns": campaigns,
+            "count": len(campaigns)
+        }
+    except Exception as e:
+        logger.error(f"Error fetching campaigns: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/data/agency-analytics/campaign/{campaign_id}/rankings")
+async def get_campaign_rankings(
+    campaign_id: int,
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)")
+):
+    """Get campaign rankings for a specific campaign"""
+    try:
+        supabase = SupabaseService()
+        
+        query = supabase.client.table("agency_analytics_campaign_rankings").select("*").eq("campaign_id", campaign_id)
+        
+        if start_date:
+            query = query.gte("date", start_date)
+        if end_date:
+            query = query.lte("date", end_date)
+        
+        query = query.order("date", desc=False)
+        result = query.execute()
+        rankings = result.data if hasattr(result, 'data') else []
+        
+        # Get campaign info
+        campaign_result = supabase.client.table("agency_analytics_campaigns").select("*").eq("id", campaign_id).execute()
+        campaign = campaign_result.data[0] if campaign_result.data else None
+        
+        return {
+            "campaign": campaign,
+            "rankings": rankings,
+            "count": len(rankings)
+        }
+    except Exception as e:
+        logger.error(f"Error fetching campaign rankings: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/data/agency-analytics/rankings")
+async def get_all_rankings(
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    limit: int = Query(1000, description="Number of records to return")
+):
+    """Get all campaign rankings"""
+    try:
+        supabase = SupabaseService()
+        
+        query = supabase.client.table("agency_analytics_campaign_rankings").select("*")
+        
+        if start_date:
+            query = query.gte("date", start_date)
+        if end_date:
+            query = query.lte("date", end_date)
+        
+        query = query.order("date", desc=True).limit(limit)
+        result = query.execute()
+        rankings = result.data if hasattr(result, 'data') else []
+        
+        return {
+            "rankings": rankings,
+            "count": len(rankings)
+        }
+    except Exception as e:
+        logger.error(f"Error fetching rankings: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/data/agency-analytics/campaign/{campaign_id}/keywords")
+async def get_campaign_keywords(
+    campaign_id: int,
+    limit: int = Query(1000, description="Number of keywords to return")
+):
+    """Get keywords for a specific campaign"""
+    try:
+        supabase = SupabaseService()
+        
+        query = supabase.client.table("agency_analytics_keywords").select("*").eq("campaign_id", campaign_id).order("id", desc=True).limit(limit)
+        result = query.execute()
+        keywords = result.data if hasattr(result, 'data') else []
+        
+        return {
+            "campaign_id": campaign_id,
+            "keywords": keywords,
+            "count": len(keywords)
+        }
+    except Exception as e:
+        logger.error(f"Error fetching campaign keywords: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/data/agency-analytics/keywords")
+async def get_all_keywords(
+    campaign_id: Optional[int] = Query(None, description="Filter by campaign ID"),
+    limit: int = Query(1000, description="Number of keywords to return")
+):
+    """Get all keywords"""
+    try:
+        supabase = SupabaseService()
+        
+        query = supabase.client.table("agency_analytics_keywords").select("*")
+        
+        if campaign_id:
+            query = query.eq("campaign_id", campaign_id)
+        
+        query = query.order("id", desc=True).limit(limit)
+        result = query.execute()
+        keywords = result.data if hasattr(result, 'data') else []
+        
+        return {
+            "keywords": keywords,
+            "count": len(keywords)
+        }
+    except Exception as e:
+        logger.error(f"Error fetching keywords: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/data/agency-analytics/keyword/{keyword_id}/rankings")
+async def get_keyword_rankings(
+    keyword_id: int,
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    limit: int = Query(1000, description="Number of records to return")
+):
+    """Get keyword rankings for a specific keyword"""
+    try:
+        supabase = SupabaseService()
+        
+        query = supabase.client.table("agency_analytics_keyword_rankings").select("*").eq("keyword_id", keyword_id)
+        
+        if start_date:
+            query = query.gte("date", start_date)
+        if end_date:
+            query = query.lte("date", end_date)
+        
+        query = query.order("date", desc=False).limit(limit)
+        result = query.execute()
+        rankings = result.data if hasattr(result, 'data') else []
+        
+        return {
+            "keyword_id": keyword_id,
+            "rankings": rankings,
+            "count": len(rankings)
+        }
+    except Exception as e:
+        logger.error(f"Error fetching keyword rankings: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/data/agency-analytics/keyword/{keyword_id}/ranking-summary")
+async def get_keyword_ranking_summary(keyword_id: int):
+    """Get keyword ranking summary (latest + change)"""
+    try:
+        supabase = SupabaseService()
+        
+        result = supabase.client.table("agency_analytics_keyword_ranking_summaries").select("*").eq("keyword_id", keyword_id).execute()
+        summary = result.data[0] if result.data else None
+        
+        return {
+            "keyword_id": keyword_id,
+            "summary": summary
+        }
+    except Exception as e:
+        logger.error(f"Error fetching keyword ranking summary: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/data/agency-analytics/campaign/{campaign_id}/keyword-rankings")
+async def get_campaign_keyword_rankings(
+    campaign_id: int,
+    limit: int = Query(1000, description="Number of records to return")
+):
+    """Get all keyword rankings for a campaign"""
+    try:
+        supabase = SupabaseService()
+        
+        query = supabase.client.table("agency_analytics_keyword_rankings").select("*").eq("campaign_id", campaign_id).order("date", desc=True).limit(limit)
+        result = query.execute()
+        rankings = result.data if hasattr(result, 'data') else []
+        
+        return {
+            "campaign_id": campaign_id,
+            "rankings": rankings,
+            "count": len(rankings)
+        }
+    except Exception as e:
+        logger.error(f"Error fetching campaign keyword rankings: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/data/agency-analytics/campaign/{campaign_id}/keyword-ranking-summaries")
+async def get_campaign_keyword_ranking_summaries(campaign_id: int):
+    """Get all keyword ranking summaries for a campaign"""
+    try:
+        supabase = SupabaseService()
+        
+        result = supabase.client.table("agency_analytics_keyword_ranking_summaries").select("*").eq("campaign_id", campaign_id).order("keyword_id", desc=True).execute()
+        summaries = result.data if hasattr(result, 'data') else []
+        
+        return {
+            "campaign_id": campaign_id,
+            "summaries": summaries,
+            "count": len(summaries)
+        }
+    except Exception as e:
+        logger.error(f"Error fetching campaign keyword ranking summaries: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/data/agency-analytics/campaign-brands")
+async def get_campaign_brand_links(
+    campaign_id: Optional[int] = Query(None, description="Filter by campaign ID"),
+    brand_id: Optional[int] = Query(None, description="Filter by brand ID")
+):
+    """Get campaign-brand links"""
+    try:
+        supabase = SupabaseService()
+        links = supabase.get_campaign_brand_links(campaign_id, brand_id)
+        
+        return {
+            "links": links,
+            "count": len(links)
+        }
+    except Exception as e:
+        logger.error(f"Error fetching campaign-brand links: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/data/agency-analytics/campaign-brands")
+async def create_campaign_brand_link(
+    campaign_id: int,
+    brand_id: int,
+    match_method: str = "manual",
+    match_confidence: str = "manual"
+):
+    """Manually link a campaign to a brand"""
+    try:
+        supabase = SupabaseService()
+        supabase.link_campaign_to_brand(campaign_id, brand_id, match_method, match_confidence)
+        
+        return {
+            "status": "success",
+            "message": f"Linked campaign {campaign_id} to brand {brand_id}"
+        }
+    except Exception as e:
+        logger.error(f"Error linking campaign to brand: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/data/agency-analytics/brand/{brand_id}/campaigns")
+async def get_brand_campaigns(brand_id: int):
+    """Get all campaigns linked to a brand"""
+    try:
+        supabase = SupabaseService()
+        
+        # Get links for this brand (returns empty list if table doesn't exist)
+        links = supabase.get_campaign_brand_links(brand_id=brand_id)
+        
+        # Get campaign details
+        campaigns = []
+        for link in links:
+            try:
+                campaign_result = supabase.client.table("agency_analytics_campaigns").select("*").eq("id", link["campaign_id"]).execute()
+                if campaign_result.data:
+                    campaign = campaign_result.data[0]
+                    campaign["link_info"] = {
+                        "match_method": link.get("match_method"),
+                        "match_confidence": link.get("match_confidence")
+                    }
+                    campaigns.append(campaign)
+            except Exception as e:
+                logger.warning(f"Error fetching campaign {link.get('campaign_id')}: {str(e)}")
+                continue
+        
+        return {
+            "brand_id": brand_id,
+            "campaigns": campaigns,
+            "count": len(campaigns)
+        }
+    except Exception as e:
+        logger.error(f"Error fetching brand campaigns: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 

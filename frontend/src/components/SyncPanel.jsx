@@ -80,6 +80,30 @@ function SyncPanel() {
     }
   }
 
+  const handleSyncAgencyAnalytics = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      setSuccess(null)
+      setSyncing('agency-analytics')
+      
+      const result = await syncAPI.syncAgencyAnalytics()
+      
+      const totalSynced = result.total_synced || {}
+      const message = `Successfully synced Agency Analytics data:\n` +
+        `• Campaigns synced: ${totalSynced.campaigns || 0}\n` +
+        `• Ranking records: ${totalSynced.rankings || 0}`
+      
+      setSuccess(message)
+      setTimeout(() => setSuccess(null), 8000)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to sync Agency Analytics data')
+    } finally {
+      setLoading(false)
+      setSyncing(null)
+    }
+  }
+
   return (
     <Box>
       <Box mb={4}>
@@ -133,7 +157,7 @@ function SyncPanel() {
       )}
 
       <Grid container spacing={3}>
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} md={4}>
           <Card
             sx={{
               height: '100%',
@@ -201,7 +225,7 @@ function SyncPanel() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} md={4}>
           <Card
             sx={{
               height: '100%',
@@ -269,6 +293,75 @@ function SyncPanel() {
             </CardContent>
           </Card>
         </Grid>
+
+        <Grid item xs={12} md={4}>
+          <Card
+            sx={{
+              height: '100%',
+              background: 'linear-gradient(135deg, rgba(255, 149, 0, 0.08) 0%, rgba(255, 45, 85, 0.08) 100%)',
+              border: `2px solid ${theme.palette.warning.main}`,
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: '0 12px 32px rgba(255, 149, 0, 0.2)',
+              },
+            }}
+          >
+            <CardContent sx={{ p: 4, textAlign: 'center' }}>
+              <AnalyticsIcon 
+                sx={{ 
+                  fontSize: 48, 
+                  color: 'warning.main', 
+                  mb: 2,
+                }} 
+              />
+              <Typography 
+                variant="h5" 
+                fontWeight={700} 
+                mb={1}
+                sx={{ fontSize: '20px' }}
+              >
+                Sync Agency Analytics Data
+              </Typography>
+              <Typography 
+                variant="body2" 
+                color="text.secondary" 
+                mb={3}
+                sx={{ fontSize: '13px', lineHeight: 1.6 }}
+              >
+                Sync Agency Analytics campaigns and quarterly ranking data. Includes Google rankings, Bing rankings, search volume, and competition metrics.
+              </Typography>
+              <Button
+                variant="contained"
+                color="warning"
+                fullWidth
+                size="large"
+                onClick={handleSyncAgencyAnalytics}
+                disabled={loading}
+                startIcon={
+                  syncing === 'agency-analytics' ? (
+                    <CircularProgress size={20} thickness={4} sx={{ color: 'white' }} />
+                  ) : (
+                    <AnalyticsIcon sx={{ fontSize: 20 }} />
+                  )
+                }
+                sx={{
+                  borderRadius: 2,
+                  px: 3,
+                  py: 1.5,
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  boxShadow: '0 4px 12px rgba(255, 149, 0, 0.3)',
+                  '&:hover': {
+                    boxShadow: '0 6px 16px rgba(255, 149, 0, 0.4)',
+                  },
+                }}
+              >
+                {syncing === 'agency-analytics' ? 'Syncing Agency Analytics...' : 'Sync Agency Analytics'}
+              </Button>
+            </CardContent>
+          </Card>
+        </Grid>
       </Grid>
 
       {loading && syncing && (
@@ -280,7 +373,9 @@ function SyncPanel() {
                   variant="body2" 
                   sx={{ fontSize: '13px', fontWeight: 600 }}
                 >
-                  {syncing === 'scrunch' ? 'Syncing Scrunch AI data...' : 'Syncing GA4 data...'}
+                  {syncing === 'scrunch' ? 'Syncing Scrunch AI data...' : 
+                   syncing === 'ga4' ? 'Syncing GA4 data...' : 
+                   'Syncing Agency Analytics data...'}
                 </Typography>
                 <Typography 
                   variant="caption" 

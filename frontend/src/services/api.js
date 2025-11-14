@@ -65,6 +65,15 @@ export const syncAPI = {
     return response.data
   },
 
+  // Sync Agency Analytics data
+  syncAgencyAnalytics: async (campaignId = null) => {
+    const params = new URLSearchParams()
+    if (campaignId) params.append('campaign_id', campaignId)
+    
+    const response = await api.post(`/api/v1/sync/agency-analytics?${params.toString()}`)
+    return response.data
+  },
+
   // Get data from database (you'll need to add these endpoints to the backend)
   getBrands: async () => {
     const response = await api.get('/api/v1/data/brands')
@@ -205,6 +214,108 @@ export const ga4API = {
   // Get brands with GA4 configured
   getBrandsWithGA4: async () => {
     const response = await api.get('/api/v1/data/ga4/brands-with-ga4')
+    return response.data
+  },
+}
+
+// Agency Analytics API endpoints
+export const agencyAnalyticsAPI = {
+  // Get all campaigns
+  getCampaigns: async () => {
+    const response = await api.get('/api/v1/data/agency-analytics/campaigns')
+    return response.data
+  },
+
+  // Get campaign rankings
+  getCampaignRankings: async (campaignId, startDate = null, endDate = null) => {
+    const params = new URLSearchParams()
+    if (startDate) params.append('start_date', startDate)
+    if (endDate) params.append('end_date', endDate)
+    
+    const response = await api.get(`/api/v1/data/agency-analytics/campaign/${campaignId}/rankings?${params.toString()}`)
+    return response.data
+  },
+
+  // Get all rankings
+  getAllRankings: async (startDate = null, endDate = null, limit = 1000) => {
+    const params = new URLSearchParams()
+    if (startDate) params.append('start_date', startDate)
+    if (endDate) params.append('end_date', endDate)
+    params.append('limit', limit)
+    
+    const response = await api.get(`/api/v1/data/agency-analytics/rankings?${params.toString()}`)
+    return response.data
+  },
+
+  // Get campaign-brand links
+  getCampaignBrandLinks: async (campaignId = null, brandId = null) => {
+    const params = new URLSearchParams()
+    if (campaignId) params.append('campaign_id', campaignId)
+    if (brandId) params.append('brand_id', brandId)
+    
+    const response = await api.get(`/api/v1/data/agency-analytics/campaign-brands?${params.toString()}`)
+    return response.data
+  },
+
+  // Create campaign-brand link
+  linkCampaignToBrand: async (campaignId, brandId, matchMethod = 'manual', matchConfidence = 'manual') => {
+    const response = await api.post('/api/v1/data/agency-analytics/campaign-brands', {
+      campaign_id: campaignId,
+      brand_id: brandId,
+      match_method: matchMethod,
+      match_confidence: matchConfidence
+    })
+    return response.data
+  },
+
+  // Get campaigns for a brand
+  getBrandCampaigns: async (brandId) => {
+    const response = await api.get(`/api/v1/data/agency-analytics/brand/${brandId}/campaigns`)
+    return response.data
+  },
+
+  // Get keywords for a campaign
+  getCampaignKeywords: async (campaignId, limit = 1000) => {
+    const response = await api.get(`/api/v1/data/agency-analytics/campaign/${campaignId}/keywords?limit=${limit}`)
+    return response.data
+  },
+
+  // Get all keywords
+  getAllKeywords: async (campaignId = null, limit = 1000) => {
+    const params = new URLSearchParams()
+    if (campaignId) params.append('campaign_id', campaignId)
+    params.append('limit', limit)
+    
+    const response = await api.get(`/api/v1/data/agency-analytics/keywords?${params.toString()}`)
+    return response.data
+  },
+
+  // Get keyword rankings
+  getKeywordRankings: async (keywordId, startDate = null, endDate = null, limit = 1000) => {
+    const params = new URLSearchParams()
+    if (startDate) params.append('start_date', startDate)
+    if (endDate) params.append('end_date', endDate)
+    params.append('limit', limit)
+    
+    const response = await api.get(`/api/v1/data/agency-analytics/keyword/${keywordId}/rankings?${params.toString()}`)
+    return response.data
+  },
+
+  // Get keyword ranking summary
+  getKeywordRankingSummary: async (keywordId) => {
+    const response = await api.get(`/api/v1/data/agency-analytics/keyword/${keywordId}/ranking-summary`)
+    return response.data
+  },
+
+  // Get campaign keyword rankings
+  getCampaignKeywordRankings: async (campaignId, limit = 1000) => {
+    const response = await api.get(`/api/v1/data/agency-analytics/campaign/${campaignId}/keyword-rankings?limit=${limit}`)
+    return response.data
+  },
+
+  // Get campaign keyword ranking summaries
+  getCampaignKeywordRankingSummaries: async (campaignId) => {
+    const response = await api.get(`/api/v1/data/agency-analytics/campaign/${campaignId}/keyword-ranking-summaries`)
     return response.data
   },
 }

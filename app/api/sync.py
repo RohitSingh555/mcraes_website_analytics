@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from app.services.scrunch_client import ScrunchAPIClient
 from app.services.supabase_service import SupabaseService
 from app.services.ga4_client import GA4APIClient
+from app.services.agency_analytics_client import AgencyAnalyticsClient
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -245,6 +246,208 @@ async def sync_status():
         }
     except Exception as e:
         logger.error(f"Error getting sync status: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# =====================================================
+# Agency Analytics Sync Endpoints
+# =====================================================
+
+@router.post("/sync/agency-analytics")
+async def sync_agency_analytics(
+    campaign_id: Optional[int] = Query(None, description="Sync specific campaign (if not provided, syncs all campaigns)"),
+    auto_match_brands: bool = Query(True, description="Automatically match campaigns to brands by URL")
+):
+    """Sync Agency Analytics campaigns and rankings data"""
+    try:
+        client = AgencyAnalyticsClient()
+        supabase = SupabaseService()
+        
+        total_synced = {
+            "campaigns": 0,
+            "rankings": 0,
+            "keywords": 0,
+            "keyword_rankings": 0,
+            "keyword_ranking_summaries": 0,
+            "brand_links": 0
+        }
+        
+        campaign_results = []
+        
+        # Get all brands for URL matching
+        brands_result = supabase.client.table("brands").select("*").execute()
+        brands = brands_result.data if hasattr(brands_result, 'data') else []
+        
+        if campaign_id:
+            # Sync specific campaign
+            logger.info(f"Syncing campaign {campaign_id}")
+            campaign = await client.get_campaign(campaign_id)
+            
+            if not campaign:
+                raise HTTPException(status_code=404, detail=f"Campaign {campaign_id} not found")
+            
+            # Upsert campaign metadata
+            supabase.upsert_agency_analytics_campaign(campaign)
+            total_synced["campaigns"] = 1
+            
+            # Get and upsert rankings (quarterly)
+            rankings = await client.get_campaign_rankings(campaign_id)
+            formatted_rankings = client.format_rankings_data(rankings, campaign)
+            
+            if formatted_rankings:
+                count = supabase.upsert_agency_analytics_rankings(formatted_rankings)
+                total_synced["rankings"] = count
+            
+            # Get and upsert keywords (with pagination to handle 500 limit)
+            keywords = await client.get_all_campaign_keywords(campaign_id)
+            formatted_keywords = client.format_keywords_data(keywords)
+            
+            if formatted_keywords:
+                count = supabase.upsert_agency_analytics_keywords(formatted_keywords)
+                total_synced["keywords"] = count
+                
+                # Get and upsert keyword rankings for each keyword
+                for keyword in formatted_keywords:
+                    keyword_id = keyword.get("id")
+                    keyword_phrase = keyword.get("keyword_phrase", "")
+                    if keyword_id:
+                        try:
+                            rankings = await client.get_keyword_rankings(keyword_id)
+                            daily_records, summary = client.format_keyword_rankings_data(
+                                rankings, keyword_id, campaign_id, keyword_phrase
+                            )
+                            
+                            if daily_records:
+                                count = supabase.upsert_agency_analytics_keyword_rankings(daily_records)
+                                total_synced["keyword_rankings"] += count
+                            
+                            if summary:
+                                supabase.upsert_agency_analytics_keyword_ranking_summary(summary)
+                                total_synced["keyword_ranking_summaries"] += 1
+                        except Exception as e:
+                            logger.warning(f"Error syncing keyword rankings for keyword {keyword_id}: {str(e)}")
+            
+            # Match campaign to brand by URL
+            if auto_match_brands:
+                for brand in brands:
+                    match = client.match_campaign_to_brand(campaign, brand)
+                    if match:
+                        try:
+                            supabase.link_campaign_to_brand(
+                                match["campaign_id"],
+                                match["brand_id"],
+                                match["match_method"],
+                                match["match_confidence"]
+                            )
+                            total_synced["brand_links"] += 1
+                            logger.info(f"Matched campaign {campaign_id} to brand {brand.get('id')} ({match['match_confidence']})")
+                            break  # Only link to first matching brand
+                        except Exception as e:
+                            logger.warning(f"Failed to link campaign {campaign_id} to brand {brand.get('id')}: {str(e)}")
+            
+            campaign_results.append({
+                "campaign_id": campaign_id,
+                "company": campaign.get("company", "Unknown"),
+                "rankings_count": len(formatted_rankings),
+                "keywords_count": len(formatted_keywords),
+                "brand_matched": total_synced["brand_links"] > 0
+            })
+        else:
+            # Sync all campaigns
+            logger.info("Syncing all campaigns")
+            campaigns = await client.get_campaigns(limit=1000, offset=0)
+            
+            for campaign in campaigns:
+                campaign_id_val = campaign.get("id")
+                if not campaign_id_val:
+                    continue
+                
+                try:
+                    # Upsert campaign metadata
+                    supabase.upsert_agency_analytics_campaign(campaign)
+                    total_synced["campaigns"] += 1
+                    
+                    # Get and upsert rankings (quarterly)
+                    rankings = await client.get_campaign_rankings(campaign_id_val)
+                    formatted_rankings = client.format_rankings_data(rankings, campaign)
+                    
+                    if formatted_rankings:
+                        count = supabase.upsert_agency_analytics_rankings(formatted_rankings)
+                        total_synced["rankings"] += count
+                    
+                    # Get and upsert keywords (with pagination to handle 500 limit)
+                    keywords = await client.get_all_campaign_keywords(campaign_id_val)
+                    formatted_keywords = client.format_keywords_data(keywords)
+                    
+                    if formatted_keywords:
+                        count = supabase.upsert_agency_analytics_keywords(formatted_keywords)
+                        total_synced["keywords"] += count
+                        
+                        # Get and upsert keyword rankings for each keyword
+                        for keyword in formatted_keywords:
+                            keyword_id = keyword.get("id")
+                            keyword_phrase = keyword.get("keyword_phrase", "")
+                            if keyword_id:
+                                try:
+                                    rankings = await client.get_keyword_rankings(keyword_id)
+                                    daily_records, summary = client.format_keyword_rankings_data(
+                                        rankings, keyword_id, campaign_id_val, keyword_phrase
+                                    )
+                                    
+                                    if daily_records:
+                                        count = supabase.upsert_agency_analytics_keyword_rankings(daily_records)
+                                        total_synced["keyword_rankings"] += count
+                                    
+                                    if summary:
+                                        supabase.upsert_agency_analytics_keyword_ranking_summary(summary)
+                                        total_synced["keyword_ranking_summaries"] += 1
+                                except Exception as e:
+                                    logger.warning(f"Error syncing keyword rankings for keyword {keyword_id}: {str(e)}")
+                    
+                    # Match campaign to brand by URL
+                    brand_matched = False
+                    if auto_match_brands:
+                        for brand in brands:
+                            match = client.match_campaign_to_brand(campaign, brand)
+                            if match:
+                                try:
+                                    supabase.link_campaign_to_brand(
+                                        match["campaign_id"],
+                                        match["brand_id"],
+                                        match["match_method"],
+                                        match["match_confidence"]
+                                    )
+                                    total_synced["brand_links"] += 1
+                                    brand_matched = True
+                                    logger.info(f"Matched campaign {campaign_id_val} to brand {brand.get('id')} ({match['match_confidence']})")
+                                    break  # Only link to first matching brand
+                                except Exception as e:
+                                    logger.warning(f"Failed to link campaign {campaign_id_val} to brand {brand.get('id')}: {str(e)}")
+                    
+                    campaign_results.append({
+                        "campaign_id": campaign_id_val,
+                        "company": campaign.get("company", "Unknown"),
+                        "rankings_count": len(formatted_rankings),
+                        "keywords_count": len(formatted_keywords),
+                        "brand_matched": brand_matched
+                    })
+                    
+                    logger.info(f"Synced campaign {campaign_id_val} ({campaign.get('company', 'Unknown')})")
+                except Exception as e:
+                    logger.error(f"Error syncing campaign {campaign_id_val}: {str(e)}")
+                    campaign_results.append({
+                        "campaign_id": campaign_id_val,
+                        "company": campaign.get("company", "Unknown"),
+                        "error": str(e)
+                    })
+        
+        return {
+            "status": "success",
+            "message": f"Synced {total_synced['campaigns']} campaigns, {total_synced['rankings']} ranking records, {total_synced['keywords']} keywords, {total_synced['keyword_rankings']} keyword ranking records, {total_synced['keyword_ranking_summaries']} keyword summaries, and {total_synced['brand_links']} brand links",
+            "total_synced": total_synced,
+            "campaign_results": campaign_results
+        }
+    except Exception as e:
+        logger.error(f"Error syncing Agency Analytics data: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # =====================================================

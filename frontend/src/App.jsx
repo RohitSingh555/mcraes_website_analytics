@@ -8,6 +8,7 @@ import BrandAnalytics from './components/BrandAnalytics'
 import BrandAnalyticsDetailWrapper from './components/BrandAnalyticsDetailWrapper'
 import SyncPanel from './components/SyncPanel'
 import DataView from './components/DataView'
+import AgencyAnalytics from './components/AgencyAnalytics'
 import { theme } from './theme'
 import './App.css'
 
@@ -22,6 +23,7 @@ function App() {
             <Route path="/brands" element={<BrandsList />} />
             <Route path="/brands/:id" element={<BrandAnalyticsDetailWrapper />} />
             <Route path="/analytics" element={<BrandAnalytics />} />
+            <Route path="/agency-analytics" element={<AgencyAnalytics />} />
             <Route path="/sync" element={<SyncPanel />} />
             <Route path="/data" element={<DataView />} />
           </Routes>

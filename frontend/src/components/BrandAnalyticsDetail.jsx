@@ -35,7 +35,7 @@ import {
   LocationOn as LocationOnIcon,
   BarChart as BarChartIcon
 } from '@mui/icons-material'
-import { syncAPI, ga4API } from '../services/api'
+import { syncAPI, ga4API, agencyAnalyticsAPI } from '../services/api'
 
 function BrandAnalyticsDetail({ brandId, brand, onBack }) {
   const [analytics, setAnalytics] = useState(null)
@@ -44,6 +44,8 @@ function BrandAnalyticsDetail({ brandId, brand, onBack }) {
   const [ga4Data, setGa4Data] = useState(null)
   const [ga4Loading, setGa4Loading] = useState(false)
   const [ga4Error, setGa4Error] = useState(null)
+  const [agencyAnalyticsCampaigns, setAgencyAnalyticsCampaigns] = useState([])
+  const [agencyAnalyticsLoading, setAgencyAnalyticsLoading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const theme = useTheme()
@@ -52,6 +54,7 @@ function BrandAnalyticsDetail({ brandId, brand, onBack }) {
     // Only load data if we have a valid brand ID
     if (brandId || brand?.id) {
       loadData()
+      loadAgencyAnalyticsCampaigns()
     } else {
       setError('No brand ID provided')
       setLoading(false)
@@ -89,6 +92,22 @@ function BrandAnalyticsDetail({ brandId, brand, onBack }) {
       setGa4Data(null)
     } finally {
       setGa4Loading(false)
+    }
+  }
+
+  const loadAgencyAnalyticsCampaigns = async () => {
+    try {
+      setAgencyAnalyticsLoading(true)
+      const brandIdToUse = brandId || brand?.id
+      if (!brandIdToUse) return
+      
+      const response = await agencyAnalyticsAPI.getBrandCampaigns(brandIdToUse)
+      setAgencyAnalyticsCampaigns(response.campaigns || [])
+    } catch (err) {
+      console.error('Error loading Agency Analytics campaigns:', err)
+      setAgencyAnalyticsCampaigns([])
+    } finally {
+      setAgencyAnalyticsLoading(false)
     }
   }
 
@@ -1824,10 +1843,106 @@ function BrandAnalyticsDetail({ brandId, brand, onBack }) {
               )}
             </>
           ) : null}
-      </Box>
-    </Box>
-  )
-}
+          </Box>
 
-export default BrandAnalyticsDetail
+          {/* Agency Analytics Campaigns Section */}
+          <Box mb={4}>
+            <Typography variant="h5" fontWeight={600} mb={2}>
+              Agency Analytics Campaigns
+            </Typography>
+            
+            {agencyAnalyticsLoading ? (
+              <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+                <CircularProgress size={32} thickness={4} />
+              </Box>
+            ) : agencyAnalyticsCampaigns.length > 0 ? (
+              <Card>
+                <CardContent sx={{ p: 3 }}>
+                  <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
+                    <Table>
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.08) }}>
+                          <TableCell sx={{ fontWeight: 700, fontSize: '13px' }}>Campaign ID</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: '13px' }}>Company</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: '13px' }}>URL</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: '13px' }}>Status</TableCell>
+                          <TableCell sx={{ fontWeight: 700, fontSize: '13px' }}>Match Confidence</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {agencyAnalyticsCampaigns.map((campaign) => (
+                          <TableRow 
+                            key={campaign.id}
+                            sx={{
+                              '&:nth-of-type(odd)': {
+                                bgcolor: alpha(theme.palette.primary.main, 0.02),
+                              },
+                              '&:hover': {
+                                bgcolor: alpha(theme.palette.primary.main, 0.05),
+                              },
+                            }}
+                          >
+                            <TableCell sx={{ fontSize: '13px' }}>{campaign.id}</TableCell>
+                            <TableCell sx={{ fontSize: '13px' }}>{campaign.company || 'N/A'}</TableCell>
+                            <TableCell sx={{ fontSize: '13px' }}>
+                              <Box display="flex" alignItems="center" gap={0.5}>
+                                <LinkIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                                <Typography 
+                                  variant="body2" 
+                                  sx={{ 
+                                    fontSize: '12px',
+                                    color: 'primary.main',
+                                    textDecoration: 'none',
+                                    '&:hover': { textDecoration: 'underline' }
+                                  }}
+                                  component="a"
+                                  href={campaign.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  {campaign.url || 'N/A'}
+                                </Typography>
+                              </Box>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={campaign.status || 'N/A'}
+                                size="small"
+                                color={campaign.status === 'active' ? 'success' : 'default'}
+                                sx={{ fontSize: '11px', height: 22 }}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={campaign.link_info?.match_confidence || 'N/A'}
+                                size="small"
+                                color={campaign.link_info?.match_confidence === 'exact' ? 'success' : 'warning'}
+                                sx={{ fontSize: '11px', height: 22 }}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </CardContent>
+              </Card>
+            ) : (
+              <Alert 
+                severity="info" 
+                sx={{ 
+                  mb: 3,
+                  borderRadius: 2,
+                  fontSize: '13px',
+                }}
+              >
+                No Agency Analytics campaigns linked to this brand. Campaigns are automatically matched by URL during sync.
+              </Alert>
+            )}
+          </Box>
+        </Box>
+      )
+    }
+    
+    export default BrandAnalyticsDetail
 

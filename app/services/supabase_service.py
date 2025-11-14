@@ -352,4 +352,313 @@ class SupabaseService:
         except Exception as e:
             logger.error(f"Error upserting GA4 realtime: {str(e)}")
             raise
+    
+    # =====================================================
+    # Agency Analytics Methods
+    # =====================================================
+    
+    def upsert_agency_analytics_campaign(self, campaign: Dict) -> int:
+        """Upsert Agency Analytics campaign metadata"""
+        try:
+            record = {
+                "id": campaign.get("id"),
+                "date_created": campaign.get("date_created"),
+                "date_modified": campaign.get("date_modified"),
+                "url": campaign.get("url"),
+                "company": campaign.get("company"),
+                "scope": campaign.get("scope"),
+                "status": campaign.get("status"),
+                "group_title": campaign.get("group_title"),
+                "email_addresses": campaign.get("email_addresses"),
+                "phone_numbers": campaign.get("phone_numbers"),
+                "address": campaign.get("address"),
+                "city": campaign.get("city"),
+                "state": campaign.get("state"),
+                "zip": campaign.get("zip"),
+                "country": campaign.get("country"),
+                "revenue": campaign.get("revenue"),
+                "headcount": campaign.get("headcount"),
+                "google_ignore_places": campaign.get("google_ignore_places"),
+                "enforce_google_cid": campaign.get("enforce_google_cid"),
+                "timezone": campaign.get("timezone"),
+                "type": campaign.get("type"),
+                "campaign_group_id": campaign.get("campaign_group_id"),
+                "company_id": campaign.get("company_id"),
+                "account_id": campaign.get("account_id"),
+                "updated_at": datetime.now().isoformat()
+            }
+            
+            result = self.client.table("agency_analytics_campaigns").upsert(record).execute()
+            logger.info(f"Upserted campaign {campaign.get('id')}")
+            return 1
+        except Exception as e:
+            logger.error(f"Error upserting campaign: {str(e)}")
+            raise
+    
+    def upsert_agency_analytics_rankings(self, rankings: List[Dict]) -> int:
+        """Upsert Agency Analytics campaign rankings"""
+        if not rankings:
+            return 0
+        
+        try:
+            # Upsert in batches
+            batch_size = 100
+            total_upserted = 0
+            
+            for i in range(0, len(rankings), batch_size):
+                batch = rankings[i:i + batch_size]
+                # Add updated_at timestamp
+                for record in batch:
+                    record["updated_at"] = datetime.now().isoformat()
+                
+                # Handle upsert with conflict resolution for campaign_id_date unique constraint
+                # Process records individually to handle duplicates gracefully
+                for record in batch:
+                    try:
+                        campaign_id_date = record.get("campaign_id_date")
+                        if not campaign_id_date:
+                            logger.warning(f"Skipping record without campaign_id_date: {record}")
+                            continue
+                        
+                        # Check if record exists
+                        existing = self.client.table("agency_analytics_campaign_rankings").select("id").eq("campaign_id_date", campaign_id_date).execute()
+                        
+                        if existing.data and len(existing.data) > 0:
+                            # Update existing record
+                            record_id = existing.data[0].get("id")
+                            if record_id:
+                                # Update by ID (primary key)
+                                self.client.table("agency_analytics_campaign_rankings").update(record).eq("id", record_id).execute()
+                                total_upserted += 1
+                            else:
+                                # Fallback: delete and insert
+                                self.client.table("agency_analytics_campaign_rankings").delete().eq("campaign_id_date", campaign_id_date).execute()
+                                self.client.table("agency_analytics_campaign_rankings").insert(record).execute()
+                                total_upserted += 1
+                        else:
+                            # Insert new record
+                            self.client.table("agency_analytics_campaign_rankings").insert(record).execute()
+                            total_upserted += 1
+                    except Exception as record_error:
+                        error_str = str(record_error)
+                        # If it's a duplicate key error, try delete and insert
+                        if "duplicate key" in error_str.lower() or "23505" in error_str:
+                            try:
+                                campaign_id_date = record.get("campaign_id_date")
+                                if campaign_id_date:
+                                    # Delete existing and insert new
+                                    self.client.table("agency_analytics_campaign_rankings").delete().eq("campaign_id_date", campaign_id_date).execute()
+                                    self.client.table("agency_analytics_campaign_rankings").insert(record).execute()
+                                    total_upserted += 1
+                                    logger.debug(f"Updated record via delete+insert: {campaign_id_date}")
+                            except Exception as retry_error:
+                                logger.warning(f"Failed to upsert record {record.get('campaign_id_date')}: {str(retry_error)}")
+                        else:
+                            logger.warning(f"Error upserting record {record.get('campaign_id_date')}: {error_str}")
+                
+                logger.info(f"Processed batch {i//batch_size + 1}: {len(batch)} rankings")
+            
+            logger.info(f"Total upserted {total_upserted} rankings")
+            return total_upserted
+        except Exception as e:
+            logger.error(f"Error upserting rankings: {str(e)}")
+            raise
+    
+    def link_campaign_to_brand(self, campaign_id: int, brand_id: int, match_method: str = "url_match", match_confidence: str = "exact") -> int:
+        """Link an Agency Analytics campaign to a brand"""
+        try:
+            record = {
+                "campaign_id": campaign_id,
+                "brand_id": brand_id,
+                "match_method": match_method,
+                "match_confidence": match_confidence,
+                "updated_at": datetime.now().isoformat()
+            }
+            
+            result = self.client.table("agency_analytics_campaign_brands").upsert(record).execute()
+            logger.info(f"Linked campaign {campaign_id} to brand {brand_id} ({match_method}, {match_confidence})")
+            return 1
+        except Exception as e:
+            error_str = str(e)
+            # Check if table doesn't exist
+            if "Could not find the table" in error_str or "does not exist" in error_str:
+                logger.warning(f"Table 'agency_analytics_campaign_brands' does not exist yet. Please run the SQL script to create it. Skipping link for campaign {campaign_id} to brand {brand_id}.")
+                return 0  # Return 0 instead of raising error
+            logger.error(f"Error linking campaign to brand: {error_str}")
+            raise
+    
+    def get_campaign_brand_links(self, campaign_id: Optional[int] = None, brand_id: Optional[int] = None) -> List[Dict]:
+        """Get campaign-brand links"""
+        try:
+            query = self.client.table("agency_analytics_campaign_brands").select("*")
+            
+            if campaign_id:
+                query = query.eq("campaign_id", campaign_id)
+            if brand_id:
+                query = query.eq("brand_id", brand_id)
+            
+            result = query.execute()
+            return result.data if hasattr(result, 'data') else []
+        except Exception as e:
+            error_str = str(e)
+            # Check if table doesn't exist
+            if "Could not find the table" in error_str or "does not exist" in error_str:
+                logger.warning(f"Table 'agency_analytics_campaign_brands' does not exist yet. Please run the SQL script to create it.")
+                return []  # Return empty list instead of raising error
+            logger.error(f"Error fetching campaign-brand links: {error_str}")
+            raise
+    
+    def upsert_agency_analytics_keywords(self, keywords: List[Dict]) -> int:
+        """Upsert Agency Analytics keywords"""
+        if not keywords:
+            return 0
+        
+        try:
+            # Upsert in batches
+            batch_size = 100
+            total_upserted = 0
+            
+            for i in range(0, len(keywords), batch_size):
+                batch = keywords[i:i + batch_size]
+                # Add updated_at timestamp
+                for record in batch:
+                    record["updated_at"] = datetime.now().isoformat()
+                
+                # Handle upsert with conflict resolution for campaign_keyword_id unique constraint
+                for record in batch:
+                    try:
+                        campaign_keyword_id = record.get("campaign_keyword_id")
+                        if not campaign_keyword_id:
+                            logger.warning(f"Skipping keyword without campaign_keyword_id: {record}")
+                            continue
+                        
+                        # Check if record exists
+                        existing = self.client.table("agency_analytics_keywords").select("id").eq("campaign_keyword_id", campaign_keyword_id).execute()
+                        
+                        if existing.data and len(existing.data) > 0:
+                            # Update existing record
+                            record_id = existing.data[0].get("id")
+                            if record_id:
+                                # Update by ID (primary key)
+                                self.client.table("agency_analytics_keywords").update(record).eq("id", record_id).execute()
+                                total_upserted += 1
+                            else:
+                                # Fallback: delete and insert
+                                self.client.table("agency_analytics_keywords").delete().eq("campaign_keyword_id", campaign_keyword_id).execute()
+                                self.client.table("agency_analytics_keywords").insert(record).execute()
+                                total_upserted += 1
+                        else:
+                            # Insert new record
+                            self.client.table("agency_analytics_keywords").insert(record).execute()
+                            total_upserted += 1
+                    except Exception as record_error:
+                        error_str = str(record_error)
+                        # If it's a duplicate key error, try delete and insert
+                        if "duplicate key" in error_str.lower() or "23505" in error_str:
+                            try:
+                                campaign_keyword_id = record.get("campaign_keyword_id")
+                                if campaign_keyword_id:
+                                    # Delete existing and insert new
+                                    self.client.table("agency_analytics_keywords").delete().eq("campaign_keyword_id", campaign_keyword_id).execute()
+                                    self.client.table("agency_analytics_keywords").insert(record).execute()
+                                    total_upserted += 1
+                                    logger.debug(f"Updated keyword via delete+insert: {campaign_keyword_id}")
+                            except Exception as retry_error:
+                                logger.warning(f"Failed to upsert keyword {record.get('campaign_keyword_id')}: {str(retry_error)}")
+                        else:
+                            logger.warning(f"Error upserting keyword {record.get('campaign_keyword_id')}: {error_str}")
+                
+                logger.info(f"Processed keyword batch {i//batch_size + 1}: {len(batch)} keywords")
+            
+            logger.info(f"Total upserted {total_upserted} keywords")
+            return total_upserted
+        except Exception as e:
+            logger.error(f"Error upserting keywords: {str(e)}")
+            raise
+    
+    def upsert_agency_analytics_keyword_rankings(self, rankings: List[Dict]) -> int:
+        """Upsert Agency Analytics keyword rankings (daily records)"""
+        if not rankings:
+            return 0
+        
+        try:
+            batch_size = 100
+            total_upserted = 0
+            
+            for i in range(0, len(rankings), batch_size):
+                batch = rankings[i:i + batch_size]
+                for record in batch:
+                    record["updated_at"] = datetime.now().isoformat()
+                
+                # Handle upsert with conflict resolution for keyword_id_date unique constraint
+                for record in batch:
+                    try:
+                        keyword_id_date = record.get("keyword_id_date")
+                        if not keyword_id_date:
+                            logger.warning(f"Skipping ranking without keyword_id_date: {record}")
+                            continue
+                        
+                        # Check if record exists
+                        existing = self.client.table("agency_analytics_keyword_rankings").select("id").eq("keyword_id_date", keyword_id_date).execute()
+                        
+                        if existing.data and len(existing.data) > 0:
+                            # Update existing record
+                            record_id = existing.data[0].get("id")
+                            if record_id:
+                                self.client.table("agency_analytics_keyword_rankings").update(record).eq("id", record_id).execute()
+                                total_upserted += 1
+                            else:
+                                self.client.table("agency_analytics_keyword_rankings").delete().eq("keyword_id_date", keyword_id_date).execute()
+                                self.client.table("agency_analytics_keyword_rankings").insert(record).execute()
+                                total_upserted += 1
+                        else:
+                            # Insert new record
+                            self.client.table("agency_analytics_keyword_rankings").insert(record).execute()
+                            total_upserted += 1
+                    except Exception as record_error:
+                        error_str = str(record_error)
+                        # Check if table doesn't exist
+                        if "Could not find the table" in error_str or "does not exist" in error_str:
+                            logger.warning(f"Table 'agency_analytics_keyword_rankings' does not exist yet. Please run the SQL script to create it.")
+                            return 0  # Return 0 instead of raising error
+                        elif "duplicate key" in error_str.lower() or "23505" in error_str:
+                            try:
+                                keyword_id_date = record.get("keyword_id_date")
+                                if keyword_id_date:
+                                    self.client.table("agency_analytics_keyword_rankings").delete().eq("keyword_id_date", keyword_id_date).execute()
+                                    self.client.table("agency_analytics_keyword_rankings").insert(record).execute()
+                                    total_upserted += 1
+                            except Exception as retry_error:
+                                logger.warning(f"Failed to upsert keyword ranking {record.get('keyword_id_date')}: {str(retry_error)}")
+                        else:
+                            logger.warning(f"Error upserting keyword ranking {record.get('keyword_id_date')}: {error_str}")
+                
+                logger.info(f"Processed keyword ranking batch {i//batch_size + 1}: {len(batch)} records")
+            
+            logger.info(f"Total upserted {total_upserted} keyword rankings")
+            return total_upserted
+        except Exception as e:
+            error_str = str(e)
+            # Check if table doesn't exist
+            if "Could not find the table" in error_str or "does not exist" in error_str:
+                logger.warning(f"Table 'agency_analytics_keyword_rankings' does not exist yet. Please run the SQL script to create it.")
+                return 0  # Return 0 instead of raising error
+            logger.error(f"Error upserting keyword rankings: {error_str}")
+            raise
+    
+    def upsert_agency_analytics_keyword_ranking_summary(self, summary: Dict) -> int:
+        """Upsert Agency Analytics keyword ranking summary (latest + change)"""
+        if not summary:
+            return 0
+        
+        try:
+            summary["updated_at"] = datetime.now().isoformat()
+            
+            # Upsert by keyword_id (primary key)
+            self.client.table("agency_analytics_keyword_ranking_summaries").upsert(summary).execute()
+            logger.info(f"Upserted keyword ranking summary for keyword {summary.get('keyword_id')}")
+            return 1
+        except Exception as e:
+            logger.error(f"Error upserting keyword ranking summary: {str(e)}")
+            raise
 

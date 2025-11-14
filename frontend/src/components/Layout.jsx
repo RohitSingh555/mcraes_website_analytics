@@ -33,6 +33,7 @@ const menuItems = [
   { text: 'Overview', icon: <DashboardIcon />, path: '/' },
   { text: 'Brands', icon: <BusinessIcon />, path: '/brands' },
   { text: 'Analytics', icon: <AnalyticsIcon />, path: '/analytics' },
+  { text: 'Agency Analytics', icon: <AnalyticsIcon />, path: '/agency-analytics' },
   { text: 'Sync Data', icon: <SyncIcon />, path: '/sync' },
   { text: 'View Data', icon: <StorageIcon />, path: '/data' },
 ]
@@ -82,7 +83,8 @@ function Layout({ children }) {
           {menuItems.map((item) => {
             const isActive = location.pathname === item.path || 
                             (item.path === '/' && location.pathname === '/') ||
-                            (item.path === '/brands' && location.pathname.startsWith('/brands'))
+                            (item.path === '/brands' && location.pathname.startsWith('/brands')) ||
+                            (item.path === '/agency-analytics' && location.pathname === '/agency-analytics')
             return (
               <ListItem 
                 key={item.text} 
