@@ -26,7 +26,7 @@ import { syncAPI } from '../services/api'
 
 function BrandsList() {
   const [brands, setBrands] = useState([])
-  const [analytics, setAnalytics] = useState(null)
+  const [brandsWithAnalytics, setBrandsWithAnalytics] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const navigate = useNavigate()
@@ -45,8 +45,28 @@ function BrandsList() {
         syncAPI.getBrandAnalytics().catch(() => null)
       ])
       
-      setBrands(brandsResponse.items || brandsResponse || [])
-      setAnalytics(analyticsResponse?.global_analytics || null)
+      const brandsList = brandsResponse.items || brandsResponse || []
+      setBrands(brandsList)
+      
+      // Map brands with their individual analytics
+      if (analyticsResponse?.brands && Array.isArray(analyticsResponse.brands)) {
+        // Create a map of brand ID to analytics
+        const analyticsMap = new Map()
+        analyticsResponse.brands.forEach(brandWithAnalytics => {
+          analyticsMap.set(brandWithAnalytics.id, brandWithAnalytics.analytics)
+        })
+        
+        // Merge brands with their analytics
+        const brandsWithStats = brandsList.map(brand => ({
+          ...brand,
+          analytics: analyticsMap.get(brand.id) || null
+        }))
+        
+        setBrandsWithAnalytics(brandsWithStats)
+      } else {
+        // If no analytics response, just set brands without analytics
+        setBrandsWithAnalytics(brandsList.map(brand => ({ ...brand, analytics: null })))
+      }
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to load brands')
     } finally {
@@ -55,7 +75,10 @@ function BrandsList() {
   }
 
   const getBrandStats = (brandId) => {
-    if (!analytics) return null
+    const brandWithAnalytics = brandsWithAnalytics.find(b => b.id === brandId)
+    if (!brandWithAnalytics?.analytics) return null
+    
+    const analytics = brandWithAnalytics.analytics
     return {
       totalResponses: analytics.total_responses || 0,
       brandPresence: analytics.brand_presence?.present || 0,
@@ -170,7 +193,7 @@ function BrandsList() {
         </Box>
 
         <Grid container spacing={2.5}>
-          {brands.map((brand, index) => {
+          {(brandsWithAnalytics.length > 0 ? brandsWithAnalytics : brands).map((brand, index) => {
             const stats = getBrandStats(brand.id)
             return (
               <Grid item xs={12} sm={6} md={4} key={brand.id}>

@@ -10,15 +10,12 @@ import {
   Alert,
   LinearProgress,
   alpha,
-  useTheme,
-  Divider
+  useTheme
 } from '@mui/material'
 import {
   Sync as SyncIcon,
   CloudDownload as CloudDownloadIcon,
-  Refresh as RefreshIcon,
-  Storage as StorageIcon,
-  Update as UpdateIcon
+  Analytics as AnalyticsIcon,
 } from '@mui/icons-material'
 import { syncAPI } from '../services/api'
 
@@ -27,41 +24,56 @@ function SyncPanel() {
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
   const [syncing, setSyncing] = useState(null)
-  const [dbLoading, setDbLoading] = useState(false)
-  const [dbError, setDbError] = useState(null)
-  const [dbSuccess, setDbSuccess] = useState(null)
-  const [dbVerification, setDbVerification] = useState(null)
   const theme = useTheme()
 
-  const handleSync = async (type) => {
+  const handleSyncScrunch = async () => {
     try {
       setLoading(true)
       setError(null)
       setSuccess(null)
-      setSyncing(type)
+      setSyncing('scrunch')
       
-      let result
-      switch (type) {
-        case 'brands':
-          result = await syncAPI.syncBrands()
-          break
-        case 'prompts':
-          result = await syncAPI.syncPrompts()
-          break
-        case 'responses':
-          result = await syncAPI.syncResponses()
-          break
-        case 'all':
-          result = await syncAPI.syncAll()
-          break
-        default:
-          return
-      }
+      const result = await syncAPI.syncAll()
       
-      setSuccess(`Successfully synced ${type}. Count: ${result.count || JSON.stringify(result.counts || {})}`)
-      setTimeout(() => setSuccess(null), 5000)
+      const summary = result.summary || {}
+      const message = `Successfully synced Scrunch AI data:\n` +
+        `• Brands: ${summary.brands || 0}\n` +
+        `• Prompts: ${summary.total_prompts || 0}\n` +
+        `• Responses: ${summary.total_responses || 0}`
+      
+      setSuccess(message)
+      setTimeout(() => setSuccess(null), 8000)
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to sync data')
+      setError(err.response?.data?.detail || 'Failed to sync Scrunch AI data')
+    } finally {
+      setLoading(false)
+      setSyncing(null)
+    }
+  }
+
+  const handleSyncGA4 = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      setSuccess(null)
+      setSyncing('ga4')
+      
+      const result = await syncAPI.syncGA4()
+      
+      const totalSynced = result.total_synced || {}
+      const message = `Successfully synced GA4 data:\n` +
+        `• Brands synced: ${totalSynced.brands || 0}\n` +
+        `• Traffic overview: ${totalSynced.traffic_overview || 0}\n` +
+        `• Top pages: ${totalSynced.top_pages || 0}\n` +
+        `• Traffic sources: ${totalSynced.traffic_sources || 0}\n` +
+        `• Geographic data: ${totalSynced.geographic || 0}\n` +
+        `• Device data: ${totalSynced.devices || 0}\n` +
+        `• Conversions: ${totalSynced.conversions || 0}`
+      
+      setSuccess(message)
+      setTimeout(() => setSuccess(null), 8000)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to sync GA4 data')
     } finally {
       setLoading(false)
       setSyncing(null)
@@ -87,7 +99,7 @@ function SyncPanel() {
           color="text.secondary"
           sx={{ fontSize: '13px' }}
         >
-          Sync data from Scrunch AI API to Supabase
+          Sync data from Scrunch AI API and Google Analytics 4 to Supabase
         </Typography>
       </Box>
 
@@ -98,6 +110,7 @@ function SyncPanel() {
             mb: 3,
             borderRadius: 2,
             fontSize: '13px',
+            whiteSpace: 'pre-line',
           }}
           onClose={() => setSuccess(null)}
         >
@@ -119,208 +132,8 @@ function SyncPanel() {
         </Alert>
       )}
 
-      <Grid container spacing={2.5}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card
-            sx={{
-              height: '100%',
-              background: 'linear-gradient(135deg, rgba(0, 122, 255, 0.04) 0%, rgba(88, 86, 214, 0.04) 100%)',
-              border: `1px solid ${alpha(theme.palette.primary.main, 0.08)}`,
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              '&:hover': {
-                transform: 'translateY(-4px)',
-                boxShadow: '0 8px 24px rgba(0, 122, 255, 0.12)',
-                borderColor: alpha(theme.palette.primary.main, 0.2),
-              },
-            }}
-          >
-            <CardContent sx={{ p: 3, textAlign: 'center' }}>
-              <CloudDownloadIcon 
-                sx={{ 
-                  fontSize: 36, 
-                  color: 'primary.main', 
-                  mb: 2,
-                  opacity: 0.9,
-                }} 
-              />
-              <Typography 
-                variant="h6" 
-                fontWeight={600} 
-                mb={1}
-                sx={{ fontSize: '16px' }}
-              >
-                Sync Brands
-              </Typography>
-              <Typography 
-                variant="body2" 
-                color="text.secondary" 
-                mb={2}
-                sx={{ fontSize: '12px' }}
-              >
-                Fetch all brands from Scrunch AI
-              </Typography>
-              <Button
-                variant="contained"
-                fullWidth
-                size="small"
-                onClick={() => handleSync('brands')}
-                disabled={loading}
-                startIcon={
-                  syncing === 'brands' ? (
-                    <CircularProgress size={16} thickness={4} sx={{ color: 'white' }} />
-                  ) : (
-                    <SyncIcon sx={{ fontSize: 16 }} />
-                  )
-                }
-                sx={{
-                  borderRadius: 2,
-                  px: 2,
-                  py: 1,
-                  fontSize: '13px',
-                  fontWeight: 600,
-                }}
-              >
-                {syncing === 'brands' ? 'Syncing...' : 'Sync Brands'}
-              </Button>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card
-            sx={{
-              height: '100%',
-              background: 'linear-gradient(135deg, rgba(90, 200, 250, 0.04) 0%, rgba(0, 122, 255, 0.04) 100%)',
-              border: `1px solid ${alpha(theme.palette.info.main, 0.08)}`,
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              '&:hover': {
-                transform: 'translateY(-4px)',
-                boxShadow: '0 8px 24px rgba(90, 200, 250, 0.12)',
-                borderColor: alpha(theme.palette.info.main, 0.2),
-              },
-            }}
-          >
-            <CardContent sx={{ p: 3, textAlign: 'center' }}>
-              <CloudDownloadIcon 
-                sx={{ 
-                  fontSize: 36, 
-                  color: 'info.main', 
-                  mb: 2,
-                  opacity: 0.9,
-                }} 
-              />
-              <Typography 
-                variant="h6" 
-                fontWeight={600} 
-                mb={1}
-                sx={{ fontSize: '16px' }}
-              >
-                Sync Prompts
-              </Typography>
-              <Typography 
-                variant="body2" 
-                color="text.secondary" 
-                mb={2}
-                sx={{ fontSize: '12px' }}
-              >
-                Fetch all prompts for your brand
-              </Typography>
-              <Button
-                variant="contained"
-                color="info"
-                fullWidth
-                size="small"
-                onClick={() => handleSync('prompts')}
-                disabled={loading}
-                startIcon={
-                  syncing === 'prompts' ? (
-                    <CircularProgress size={16} thickness={4} sx={{ color: 'white' }} />
-                  ) : (
-                    <SyncIcon sx={{ fontSize: 16 }} />
-                  )
-                }
-                sx={{
-                  borderRadius: 2,
-                  px: 2,
-                  py: 1,
-                  fontSize: '13px',
-                  fontWeight: 600,
-                }}
-              >
-                {syncing === 'prompts' ? 'Syncing...' : 'Sync Prompts'}
-              </Button>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card
-            sx={{
-              height: '100%',
-              background: 'linear-gradient(135deg, rgba(52, 199, 89, 0.04) 0%, rgba(90, 200, 250, 0.04) 100%)',
-              border: `1px solid ${alpha(theme.palette.success.main, 0.08)}`,
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              '&:hover': {
-                transform: 'translateY(-4px)',
-                boxShadow: '0 8px 24px rgba(52, 199, 89, 0.12)',
-                borderColor: alpha(theme.palette.success.main, 0.2),
-              },
-            }}
-          >
-            <CardContent sx={{ p: 3, textAlign: 'center' }}>
-              <CloudDownloadIcon 
-                sx={{ 
-                  fontSize: 36, 
-                  color: 'success.main', 
-                  mb: 2,
-                  opacity: 0.9,
-                }} 
-              />
-              <Typography 
-                variant="h6" 
-                fontWeight={600} 
-                mb={1}
-                sx={{ fontSize: '16px' }}
-              >
-                Sync Responses
-              </Typography>
-              <Typography 
-                variant="body2" 
-                color="text.secondary" 
-                mb={2}
-                sx={{ fontSize: '12px' }}
-              >
-                Fetch all responses from AI platforms
-              </Typography>
-              <Button
-                variant="contained"
-                color="success"
-                fullWidth
-                size="small"
-                onClick={() => handleSync('responses')}
-                disabled={loading}
-                startIcon={
-                  syncing === 'responses' ? (
-                    <CircularProgress size={16} thickness={4} sx={{ color: 'white' }} />
-                  ) : (
-                    <SyncIcon sx={{ fontSize: 16 }} />
-                  )
-                }
-                sx={{
-                  borderRadius: 2,
-                  px: 2,
-                  py: 1,
-                  fontSize: '13px',
-                  fontWeight: 600,
-                }}
-              >
-                {syncing === 'responses' ? 'Syncing...' : 'Sync Responses'}
-              </Button>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
+      <Grid container spacing={3}>
+        <Grid item xs={12} md={6}>
           <Card
             sx={{
               height: '100%',
@@ -333,48 +146,48 @@ function SyncPanel() {
               },
             }}
           >
-            <CardContent sx={{ p: 3, textAlign: 'center' }}>
-              <RefreshIcon 
+            <CardContent sx={{ p: 4, textAlign: 'center' }}>
+              <CloudDownloadIcon 
                 sx={{ 
-                  fontSize: 36, 
+                  fontSize: 48, 
                   color: 'primary.main', 
                   mb: 2,
                 }} 
               />
               <Typography 
-                variant="h6" 
+                variant="h5" 
                 fontWeight={700} 
                 mb={1}
-                sx={{ fontSize: '16px' }}
+                sx={{ fontSize: '20px' }}
               >
-                Sync All
+                Sync Scrunch API Data
               </Typography>
               <Typography 
                 variant="body2" 
                 color="text.secondary" 
-                mb={2}
-                sx={{ fontSize: '12px' }}
+                mb={3}
+                sx={{ fontSize: '13px', lineHeight: 1.6 }}
               >
-                Sync all data at once
+                Sync all data from Scrunch AI API including brands, prompts, and responses to Supabase database.
               </Typography>
               <Button
                 variant="contained"
                 fullWidth
-                size="small"
-                onClick={() => handleSync('all')}
+                size="large"
+                onClick={handleSyncScrunch}
                 disabled={loading}
                 startIcon={
-                  syncing === 'all' ? (
-                    <CircularProgress size={16} thickness={4} sx={{ color: 'white' }} />
+                  syncing === 'scrunch' ? (
+                    <CircularProgress size={20} thickness={4} sx={{ color: 'white' }} />
                   ) : (
-                    <RefreshIcon sx={{ fontSize: 16 }} />
+                    <SyncIcon sx={{ fontSize: 20 }} />
                   )
                 }
                 sx={{
                   borderRadius: 2,
-                  px: 2,
-                  py: 1,
-                  fontSize: '13px',
+                  px: 3,
+                  py: 1.5,
+                  fontSize: '14px',
                   fontWeight: 700,
                   boxShadow: '0 4px 12px rgba(0, 122, 255, 0.3)',
                   '&:hover': {
@@ -382,7 +195,76 @@ function SyncPanel() {
                   },
                 }}
               >
-                {syncing === 'all' ? 'Syncing All...' : 'Sync All Data'}
+                {syncing === 'scrunch' ? 'Syncing Scrunch Data...' : 'Sync Scrunch API Data'}
+              </Button>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Card
+            sx={{
+              height: '100%',
+              background: 'linear-gradient(135deg, rgba(52, 199, 89, 0.08) 0%, rgba(90, 200, 250, 0.08) 100%)',
+              border: `2px solid ${theme.palette.success.main}`,
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: '0 12px 32px rgba(52, 199, 89, 0.2)',
+              },
+            }}
+          >
+            <CardContent sx={{ p: 4, textAlign: 'center' }}>
+              <AnalyticsIcon 
+                sx={{ 
+                  fontSize: 48, 
+                  color: 'success.main', 
+                  mb: 2,
+                }} 
+              />
+              <Typography 
+                variant="h5" 
+                fontWeight={700} 
+                mb={1}
+                sx={{ fontSize: '20px' }}
+              >
+                Sync GA4 Data
+              </Typography>
+              <Typography 
+                variant="body2" 
+                color="text.secondary" 
+                mb={3}
+                sx={{ fontSize: '13px', lineHeight: 1.6 }}
+              >
+                Sync Google Analytics 4 data for all brands with GA4 property IDs configured. Includes traffic overview, top pages, sources, geographic, devices, and conversions.
+              </Typography>
+              <Button
+                variant="contained"
+                color="success"
+                fullWidth
+                size="large"
+                onClick={handleSyncGA4}
+                disabled={loading}
+                startIcon={
+                  syncing === 'ga4' ? (
+                    <CircularProgress size={20} thickness={4} sx={{ color: 'white' }} />
+                  ) : (
+                    <AnalyticsIcon sx={{ fontSize: 20 }} />
+                  )
+                }
+                sx={{
+                  borderRadius: 2,
+                  px: 3,
+                  py: 1.5,
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  boxShadow: '0 4px 12px rgba(52, 199, 89, 0.3)',
+                  '&:hover': {
+                    boxShadow: '0 6px 16px rgba(52, 199, 89, 0.4)',
+                  },
+                }}
+              >
+                {syncing === 'ga4' ? 'Syncing GA4 Data...' : 'Sync GA4 Data'}
               </Button>
             </CardContent>
           </Card>
@@ -393,13 +275,21 @@ function SyncPanel() {
         <Box mt={3}>
           <Card>
             <CardContent sx={{ p: 2.5 }}>
-              <Typography 
-                variant="body2" 
-                mb={1.5}
-                sx={{ fontSize: '13px', fontWeight: 500 }}
-              >
-                Syncing {syncing}...
-              </Typography>
+              <Box display="flex" alignItems="center" justifyContent="space-between" mb={1.5}>
+                <Typography 
+                  variant="body2" 
+                  sx={{ fontSize: '13px', fontWeight: 600 }}
+                >
+                  {syncing === 'scrunch' ? 'Syncing Scrunch AI data...' : 'Syncing GA4 data...'}
+                </Typography>
+                <Typography 
+                  variant="caption" 
+                  color="text.secondary"
+                  sx={{ fontSize: '12px' }}
+                >
+                  This may take a few minutes
+                </Typography>
+              </Box>
               <LinearProgress 
                 sx={{ 
                   borderRadius: 1,

@@ -47,9 +47,21 @@ export const syncAPI = {
     return response.data
   },
 
-  // Sync all
+  // Sync all Scrunch AI data
   syncAll: async () => {
     const response = await api.post('/api/v1/sync/all')
+    return response.data
+  },
+
+  // Sync GA4 data
+  syncGA4: async (brandId = null, startDate = null, endDate = null, syncRealtime = false) => {
+    const params = new URLSearchParams()
+    if (brandId) params.append('brand_id', brandId)
+    if (startDate) params.append('start_date', startDate)
+    if (endDate) params.append('end_date', endDate)
+    params.append('sync_realtime', syncRealtime)
+    
+    const response = await api.post(`/api/v1/sync/ga4?${params.toString()}`)
     return response.data
   },
 
