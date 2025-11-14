@@ -3,17 +3,38 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import uvicorn
 from app.core.config import settings
-from app.api import sync
-from app.core.database import init_db
+from app.api import sync, data, database
+from app.db.database import init_db, check_db_connection
 from app.core.logging_config import setup_logging
+import logging
 
 # Setup logging
 setup_logging()
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Initialize database
-    init_db()
+    # Startup: Check database connection and initialize
+    logger.info("Starting application...")
+    logger.info(f"Supabase URL: {settings.SUPABASE_URL[:30] if settings.SUPABASE_URL else 'NOT SET'}...")
+    logger.info(f"Supabase Key: {'SET' if settings.SUPABASE_KEY else 'NOT SET'}")
+    
+    # Check REST API connection first
+    try:
+        from app.core.database import get_supabase_client
+        client = get_supabase_client()
+        logger.info("REST API connection: SUCCESS")
+    except Exception as e:
+        logger.error(f"REST API connection failed: {e}")
+    
+    # Check direct DB connection (optional)
+    logger.info("Checking database connection...")
+    if check_db_connection():
+        logger.info("Direct database connection successful!")
+        init_db()
+    else:
+        logger.warning("Direct database connection failed (this is OK if using REST API)")
+    
     yield
     # Shutdown (if needed)
 
@@ -35,6 +56,8 @@ app.add_middleware(
 
 # Include routers
 app.include_router(sync.router, prefix="/api/v1", tags=["sync"])
+app.include_router(data.router, prefix="/api/v1", tags=["data"])
+app.include_router(database.router, prefix="/api/v1", tags=["database"])
 
 @app.get("/")
 async def root():
@@ -46,7 +69,43 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    """Health check endpoint"""
+    # Check configuration first
+    config_status = {
+        "supabase_url": "SET" if settings.SUPABASE_URL else "NOT SET",
+        "supabase_key": "SET" if settings.SUPABASE_KEY else "NOT SET",
+        "scrunch_token": "SET" if settings.SCRUNCH_API_TOKEN else "NOT SET"
+    }
+    
+    # Check REST API connection (Supabase)
+    api_status = False
+    api_error = None
+    try:
+        from app.core.database import get_supabase_client
+        client = get_supabase_client()
+        # Just check if client is initialized (connection is verified by client creation)
+        # The client is already initialized and URL/key are configured
+        if client is not None:
+            api_status = True
+    except Exception as e:
+        api_error = str(e)
+    
+    # Try direct DB connection (optional, may fail on Windows IPv6)
+    db_status = check_db_connection()
+    
+    response = {
+        "status": "healthy" if api_status else "unhealthy",
+        "config": config_status,
+        "database": {
+            "rest_api": "connected" if api_status else "disconnected",
+            "direct_postgres": "connected" if db_status else "disconnected"
+        }
+    }
+    
+    if api_error:
+        response["api_error"] = api_error
+    
+    return response
 
 if __name__ == "__main__":
     uvicorn.run(

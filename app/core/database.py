@@ -10,9 +10,20 @@ def get_supabase_client() -> Client:
     """Get or create Supabase client"""
     global supabase
     if supabase is None:
-        if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
-            raise ValueError("Supabase URL and Key must be set in environment variables")
-        supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+        url = settings.SUPABASE_URL or ""
+        key = settings.SUPABASE_KEY or ""
+        
+        if not url or not key:
+            error_msg = (
+                f"Supabase URL and Key must be set. "
+                f"URL: {'SET' if url else 'NOT SET'}, "
+                f"KEY: {'SET' if key else 'NOT SET'}. "
+                f"Please check your .env file or config.py"
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        
+        supabase = create_client(url, key)
         logger.info("Supabase client initialized")
     return supabase
 
