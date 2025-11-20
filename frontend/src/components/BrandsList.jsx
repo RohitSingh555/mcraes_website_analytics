@@ -13,7 +13,6 @@ import {
   Button,
   alpha,
   useTheme,
-  Fade,
   Skeleton
 } from '@mui/material'
 import {
@@ -22,6 +21,7 @@ import {
   ArrowForward as ArrowForwardIcon,
   Refresh as RefreshIcon
 } from '@mui/icons-material'
+import { motion } from 'framer-motion'
 import { syncAPI } from '../services/api'
 
 function BrandsList() {
@@ -123,13 +123,19 @@ function BrandsList() {
 
   if (brands.length === 0) {
     return (
-      <Card>
+      <Card
+        sx={{
+          borderRadius: 2,
+          border: `1px solid ${theme.palette.divider}`,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        }}
+      >
         <CardContent sx={{ p: 4, textAlign: 'center' }}>
           <BusinessIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2, opacity: 0.4 }} />
-          <Typography variant="h6" fontWeight={600} mb={1} sx={{ fontSize: '18px' }}>
+          <Typography variant="h6" fontWeight={600} mb={1} sx={{ fontSize: '1.125rem' }}>
             No brands available
           </Typography>
-          <Typography variant="body2" color="text.secondary" mb={3} sx={{ fontSize: '13px' }}>
+          <Typography variant="body2" color="text.secondary" mb={3} sx={{ fontSize: '0.875rem' }}>
             Sync data first to view brands
           </Typography>
           <Button 
@@ -137,11 +143,15 @@ function BrandsList() {
             size="small"
             onClick={loadBrands}
             sx={{
-              px: 2.5,
-              py: 1,
-              borderRadius: 2,
-              fontSize: '13px',
+              px: 2,
+              py: 0.75,
+              borderRadius: 1.5,
+              fontSize: '0.875rem',
               fontWeight: 600,
+              boxShadow: 'none',
+              '&:hover': {
+                boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+              },
             }}
           >
             Refresh
@@ -152,96 +162,109 @@ function BrandsList() {
   }
 
   return (
-    <Fade in={true}>
-      <Box>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-          <Box>
-            <Typography 
-              variant="h4" 
-              fontWeight={600} 
-              mb={0.5}
-              sx={{
-                fontSize: '24px',
-                letterSpacing: '-0.01em',
-              }}
-            >
-              Brands
-            </Typography>
-            <Typography 
-              variant="body2" 
-              color="text.secondary" 
-              sx={{ fontSize: '13px' }}
-            >
-              {brands.length} {brands.length === 1 ? 'brand' : 'brands'} available
-            </Typography>
-          </Box>
-          <Button 
-            variant="outlined" 
-            size="small"
-            startIcon={<RefreshIcon sx={{ fontSize: 16 }} />}
-            onClick={loadBrands}
+    <Box>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+        <Box>
+          <Typography 
+            variant="h4" 
+            fontWeight={700} 
+            mb={1}
             sx={{
-              borderRadius: 2,
-              px: 2,
-              py: 0.75,
-              fontSize: '13px',
-              fontWeight: 600,
+              fontSize: '1.75rem',
+              letterSpacing: '-0.02em',
+              color: 'text.primary'
             }}
           >
-            Refresh
-          </Button>
+            Brands
+          </Typography>
+          <Typography 
+            variant="body1" 
+            color="text.secondary"
+            sx={{ fontSize: '0.875rem' }}
+          >
+            {brands.length} {brands.length === 1 ? 'brand' : 'brands'} available
+          </Typography>
         </Box>
+        <Button 
+          variant="outlined" 
+          size="small"
+          startIcon={<RefreshIcon sx={{ fontSize: 16 }} />}
+          onClick={loadBrands}
+          sx={{
+            borderRadius: 2,
+            px: 2,
+            py: 0.75,
+            fontWeight: 600,
+            fontSize: '0.875rem',
+            bgcolor: 'background.paper',
+            borderColor: theme.palette.divider,
+            '&:hover': {
+              borderColor: theme.palette.divider,
+              bgcolor: alpha(theme.palette.primary.main, 0.05),
+            },
+          }}
+        >
+          Refresh
+        </Button>
+      </Box>
 
-        <Grid container spacing={2.5}>
-          {(brandsWithAnalytics.length > 0 ? brandsWithAnalytics : brands).map((brand, index) => {
-            const stats = getBrandStats(brand.id)
-            return (
-              <Grid item xs={12} sm={6} md={4} key={brand.id}>
-                <Fade in={true} timeout={200 + index * 50}>
-                  <Card
-                    sx={{
+      <Grid container spacing={2.5}>
+        {(brandsWithAnalytics.length > 0 ? brandsWithAnalytics : brands).map((brand, index) => {
+          const stats = getBrandStats(brand.id)
+          return (
+            <Grid item xs={12} sm={6} md={4} key={brand.id}>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.05 }}
+              >
+                <Card
+                  sx={{
+                    height: '100%',
+                    cursor: 'pointer',
+                    background: '#FFFFFF',
+                    border: `1px solid ${theme.palette.divider}`,
+                    borderRadius: 2,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                    transition: 'all 0.2s ease-in-out',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    '&:before': {
+                      content: '""',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '4px',
                       height: '100%',
-                      cursor: 'pointer',
-                      background: 'rgba(255, 255, 255, 0.8)',
-                      border: '1px solid rgba(0, 0, 0, 0.06)',
-                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                      position: 'relative',
-                      overflow: 'hidden',
-                      '&::before': {
-                        content: '""',
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        height: 3,
-                        background: 'linear-gradient(90deg, #007AFF 0%, #5856D6 100%)',
-                        opacity: 0,
-                        transition: 'opacity 0.3s',
+                      backgroundColor: theme.palette.primary.main,
+                      opacity: 0,
+                      transition: 'opacity 0.2s',
+                    },
+                    '&:hover': {
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                      transform: 'translateY(-2px)',
+                      borderColor: alpha(theme.palette.primary.main, 0.3),
+                      '&:before': {
+                        opacity: 1,
                       },
-                      '&:hover': {
-                        transform: 'translateY(-4px)',
-                        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.1)',
-                        borderColor: alpha(theme.palette.primary.main, 0.2),
-                        '&::before': {
-                          opacity: 1,
-                        },
-                        '& .brand-arrow': {
-                          transform: 'translateX(2px)',
-                          opacity: 1,
-                        },
+                      '& .brand-arrow': {
+                        transform: 'translateX(2px)',
+                        opacity: 1,
                       },
-                    }}
-                    onClick={() => navigate(`/brands/${brand.id}`)}
-                  >
+                    },
+                  }}
+                  onClick={() => navigate(`/brands/${brand.id}`)}
+                >
                     <CardContent sx={{ p: 2.5 }}>
                       <Box display="flex" alignItems="center" mb={2}>
                         <Avatar
                           sx={{
-                            bgcolor: 'primary.main',
-                            width: 48,
-                            height: 48,
-                            mr: 2,
-                            fontSize: '20px',
+                            bgcolor: alpha(theme.palette.primary.main, 0.1),
+                            color: theme.palette.primary.main,
+                            width: 40,
+                            height: 40,
+                            mr: 1.5,
+                            fontSize: '18px',
                             fontWeight: 600,
                           }}
                         >
@@ -252,10 +275,11 @@ function BrandsList() {
                             variant="h6" 
                             fontWeight={600}
                             sx={{ 
-                              fontSize: '16px',
+                              fontSize: '1rem',
                               letterSpacing: '-0.01em',
                               mb: 0.25,
                               lineHeight: 1.3,
+                              color: 'text.primary',
                             }}
                           >
                             {brand.name}
@@ -274,7 +298,7 @@ function BrandsList() {
                                 variant="caption" 
                                 color="text.secondary"
                                 sx={{ 
-                                  fontSize: '12px',
+                                  fontSize: '0.75rem',
                                   fontWeight: 500,
                                 }}
                               >
@@ -298,8 +322,7 @@ function BrandsList() {
                         <Box 
                           mt={2} 
                           pt={2}
-                          borderTop="1px solid"
-                          borderColor="divider"
+                          borderTop={`1px solid ${theme.palette.divider}`}
                         >
                           <Grid container spacing={1.5}>
                             <Grid item xs={4}>
@@ -307,11 +330,11 @@ function BrandsList() {
                                 <Typography 
                                   variant="h6" 
                                   fontWeight={700}
-                                  color="primary.main"
                                   sx={{
-                                    fontSize: '20px',
-                                    letterSpacing: '-0.01em',
+                                    fontSize: '1.25rem',
+                                    letterSpacing: '-0.02em',
                                     mb: 0.25,
+                                    color: 'text.primary',
                                   }}
                                 >
                                   {stats.totalResponses.toLocaleString()}
@@ -320,7 +343,7 @@ function BrandsList() {
                                   variant="caption" 
                                   color="text.secondary"
                                   sx={{ 
-                                    fontSize: '11px',
+                                    fontSize: '0.7rem',
                                     fontWeight: 500,
                                     textTransform: 'uppercase',
                                     letterSpacing: '0.05em',
@@ -335,11 +358,11 @@ function BrandsList() {
                                 <Typography 
                                   variant="h6" 
                                   fontWeight={700}
-                                  color="success.main"
                                   sx={{
-                                    fontSize: '20px',
-                                    letterSpacing: '-0.01em',
+                                    fontSize: '1.25rem',
+                                    letterSpacing: '-0.02em',
                                     mb: 0.25,
+                                    color: 'text.primary',
                                   }}
                                 >
                                   {stats.brandPresence.toLocaleString()}
@@ -348,7 +371,7 @@ function BrandsList() {
                                   variant="caption" 
                                   color="text.secondary"
                                   sx={{ 
-                                    fontSize: '11px',
+                                    fontSize: '0.7rem',
                                     fontWeight: 500,
                                     textTransform: 'uppercase',
                                     letterSpacing: '0.05em',
@@ -363,11 +386,11 @@ function BrandsList() {
                                 <Typography 
                                   variant="h6" 
                                   fontWeight={700}
-                                  color="warning.main"
                                   sx={{
-                                    fontSize: '20px',
-                                    letterSpacing: '-0.01em',
+                                    fontSize: '1.25rem',
+                                    letterSpacing: '-0.02em',
                                     mb: 0.25,
+                                    color: 'text.primary',
                                   }}
                                 >
                                   {stats.topCompetitors}
@@ -376,7 +399,7 @@ function BrandsList() {
                                   variant="caption" 
                                   color="text.secondary"
                                   sx={{ 
-                                    fontSize: '11px',
+                                    fontSize: '0.7rem',
                                     fontWeight: 500,
                                     textTransform: 'uppercase',
                                     letterSpacing: '0.05em',
@@ -389,32 +412,14 @@ function BrandsList() {
                           </Grid>
                         </Box>
                       )}
-
-                      <Box mt={2} pt={1.5}>
-                        <Chip
-                          label="View Details"
-                          size="small"
-                          sx={{
-                            bgcolor: alpha(theme.palette.primary.main, 0.08),
-                            color: 'primary.main',
-                            fontWeight: 600,
-                            fontSize: '12px',
-                            height: 24,
-                            '&:hover': {
-                              bgcolor: alpha(theme.palette.primary.main, 0.15),
-                            },
-                          }}
-                        />
-                      </Box>
                     </CardContent>
                   </Card>
-                </Fade>
+                </motion.div>
               </Grid>
             )
           })}
         </Grid>
       </Box>
-    </Fade>
   )
 }
 

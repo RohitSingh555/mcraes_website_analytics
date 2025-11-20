@@ -305,26 +305,55 @@ async def sync_agency_analytics(
                 count = supabase.upsert_agency_analytics_keywords(formatted_keywords)
                 total_synced["keywords"] = count
                 
-                # Get and upsert keyword rankings for each keyword
-                for keyword in formatted_keywords:
+                # Get and upsert keyword rankings in batches (parallel API calls)
+                async def sync_keyword_rankings(keyword):
+                    """Helper function to sync a single keyword's rankings"""
                     keyword_id = keyword.get("id")
                     keyword_phrase = keyword.get("keyword_phrase", "")
-                    if keyword_id:
-                        try:
-                            rankings = await client.get_keyword_rankings(keyword_id)
-                            daily_records, summary = client.format_keyword_rankings_data(
-                                rankings, keyword_id, campaign_id, keyword_phrase
-                            )
-                            
-                            if daily_records:
-                                count = supabase.upsert_agency_analytics_keyword_rankings(daily_records)
-                                total_synced["keyword_rankings"] += count
-                            
-                            if summary:
-                                supabase.upsert_agency_analytics_keyword_ranking_summary(summary)
-                                total_synced["keyword_ranking_summaries"] += 1
-                        except Exception as e:
-                            logger.warning(f"Error syncing keyword rankings for keyword {keyword_id}: {str(e)}")
+                    if not keyword_id:
+                        return None
+                    
+                    try:
+                        rankings = await client.get_keyword_rankings(keyword_id)
+                        daily_records, summary = client.format_keyword_rankings_data(
+                            rankings, keyword_id, campaign_id, keyword_phrase
+                        )
+                        return {"daily_records": daily_records, "summary": summary}
+                    except Exception as e:
+                        logger.warning(f"Error syncing keyword rankings for keyword {keyword_id}: {str(e)}")
+                        return None
+                
+                # Process keywords in batches with parallel API calls
+                import asyncio
+                batch_size = 10  # Process 10 keywords in parallel
+                all_daily_records = []
+                all_summaries = []
+                
+                for i in range(0, len(formatted_keywords), batch_size):
+                    keyword_batch = formatted_keywords[i:i + batch_size]
+                    
+                    # Fetch rankings for batch in parallel
+                    results = await asyncio.gather(*[sync_keyword_rankings(kw) for kw in keyword_batch], return_exceptions=True)
+                    
+                    # Collect results
+                    for result in results:
+                        if result and isinstance(result, dict):
+                            if result.get("daily_records"):
+                                all_daily_records.extend(result["daily_records"])
+                            if result.get("summary"):
+                                all_summaries.append(result["summary"])
+                    
+                    logger.info(f"Processed keyword batch {i//batch_size + 1} ({len(keyword_batch)} keywords)")
+                
+                # Batch upsert all daily records at once
+                if all_daily_records:
+                    count = supabase.upsert_agency_analytics_keyword_rankings(all_daily_records)
+                    total_synced["keyword_rankings"] += count
+                
+                # Batch upsert all summaries at once
+                if all_summaries:
+                    count = supabase.upsert_agency_analytics_keyword_ranking_summaries_batch(all_summaries)
+                    total_synced["keyword_ranking_summaries"] += count
             
             # Match campaign to brand by URL
             if auto_match_brands:
@@ -382,26 +411,55 @@ async def sync_agency_analytics(
                         count = supabase.upsert_agency_analytics_keywords(formatted_keywords)
                         total_synced["keywords"] += count
                         
-                        # Get and upsert keyword rankings for each keyword
-                        for keyword in formatted_keywords:
+                        # Get and upsert keyword rankings in batches (parallel API calls)
+                        async def sync_keyword_rankings(keyword):
+                            """Helper function to sync a single keyword's rankings"""
                             keyword_id = keyword.get("id")
                             keyword_phrase = keyword.get("keyword_phrase", "")
-                            if keyword_id:
-                                try:
-                                    rankings = await client.get_keyword_rankings(keyword_id)
-                                    daily_records, summary = client.format_keyword_rankings_data(
-                                        rankings, keyword_id, campaign_id_val, keyword_phrase
-                                    )
-                                    
-                                    if daily_records:
-                                        count = supabase.upsert_agency_analytics_keyword_rankings(daily_records)
-                                        total_synced["keyword_rankings"] += count
-                                    
-                                    if summary:
-                                        supabase.upsert_agency_analytics_keyword_ranking_summary(summary)
-                                        total_synced["keyword_ranking_summaries"] += 1
-                                except Exception as e:
-                                    logger.warning(f"Error syncing keyword rankings for keyword {keyword_id}: {str(e)}")
+                            if not keyword_id:
+                                return None
+                            
+                            try:
+                                rankings = await client.get_keyword_rankings(keyword_id)
+                                daily_records, summary = client.format_keyword_rankings_data(
+                                    rankings, keyword_id, campaign_id_val, keyword_phrase
+                                )
+                                return {"daily_records": daily_records, "summary": summary}
+                            except Exception as e:
+                                logger.warning(f"Error syncing keyword rankings for keyword {keyword_id}: {str(e)}")
+                                return None
+                        
+                        # Process keywords in batches with parallel API calls
+                        batch_size = 10  # Process 10 keywords in parallel
+                        all_daily_records = []
+                        all_summaries = []
+                        
+                        for i in range(0, len(formatted_keywords), batch_size):
+                            keyword_batch = formatted_keywords[i:i + batch_size]
+                            
+                            # Fetch rankings for batch in parallel
+                            import asyncio
+                            results = await asyncio.gather(*[sync_keyword_rankings(kw) for kw in keyword_batch], return_exceptions=True)
+                            
+                            # Collect results
+                            for result in results:
+                                if result and isinstance(result, dict):
+                                    if result.get("daily_records"):
+                                        all_daily_records.extend(result["daily_records"])
+                                    if result.get("summary"):
+                                        all_summaries.append(result["summary"])
+                            
+                            logger.info(f"Processed keyword batch {i//batch_size + 1} ({len(keyword_batch)} keywords)")
+                        
+                        # Batch upsert all daily records at once
+                        if all_daily_records:
+                            count = supabase.upsert_agency_analytics_keyword_rankings(all_daily_records)
+                            total_synced["keyword_rankings"] += count
+                        
+                        # Batch upsert all summaries at once
+                        if all_summaries:
+                            count = supabase.upsert_agency_analytics_keyword_ranking_summaries_batch(all_summaries)
+                            total_synced["keyword_ranking_summaries"] += count
                     
                     # Match campaign to brand by URL
                     brand_matched = False

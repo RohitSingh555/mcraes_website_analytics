@@ -9,6 +9,38 @@ const api = axios.create({
   },
 })
 
+// Add request interceptor to include auth token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('access_token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
+
+// Add response interceptor to handle auth errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Clear tokens and redirect to login
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      localStorage.removeItem('user')
+      // Only redirect if not already on login page
+      if (window.location.pathname !== '/login' && window.location.pathname !== '/signup') {
+        window.location.href = '/login'
+      }
+    }
+    return Promise.reject(error)
+  }
+)
+
 // Sync API endpoints
 export const syncAPI = {
   // Get sync status
@@ -316,6 +348,97 @@ export const agencyAnalyticsAPI = {
   // Get campaign keyword ranking summaries
   getCampaignKeywordRankingSummaries: async (campaignId) => {
     const response = await api.get(`/api/v1/data/agency-analytics/campaign/${campaignId}/keyword-ranking-summaries`)
+    return response.data
+  },
+}
+
+// Reporting Dashboard API endpoints
+export const reportingAPI = {
+  // Get consolidated reporting dashboard KPIs
+  getReportingDashboard: async (brandId, startDate = null, endDate = null) => {
+    const params = new URLSearchParams()
+    if (startDate) params.append('start_date', startDate)
+    if (endDate) params.append('end_date', endDate)
+    
+    const response = await api.get(`/api/v1/data/reporting-dashboard/${brandId}?${params.toString()}`)
+    return response.data
+  },
+  
+  // Get consolidated reporting dashboard KPIs by slug (public access)
+  getReportingDashboardBySlug: async (slug, startDate = null, endDate = null) => {
+    const params = new URLSearchParams()
+    if (startDate) params.append('start_date', startDate)
+    if (endDate) params.append('end_date', endDate)
+    
+    const response = await api.get(`/api/v1/data/reporting-dashboard/slug/${slug}?${params.toString()}`)
+    return response.data
+  },
+  
+  // Get brand by slug (public access)
+  getBrandBySlug: async (slug) => {
+    const response = await api.get(`/api/v1/data/brands/slug/${slug}`)
+    return response.data
+  },
+  
+  // Get diagnostic information about brand configuration
+  getDiagnostics: async (brandId) => {
+    const response = await api.get(`/api/v1/data/reporting-dashboard/${brandId}/diagnostics`)
+    return response.data
+  },
+}
+
+// Authentication API endpoints
+export const authAPI = {
+  // Sign up
+  signup: async (email, password, fullName = null) => {
+    const response = await api.post('/api/v1/auth/signup', {
+      email,
+      password,
+      full_name: fullName,
+    })
+    return response.data
+  },
+
+  // Sign in
+  signin: async (email, password) => {
+    const response = await api.post('/api/v1/auth/signin', {
+      email,
+      password,
+    })
+    return response.data
+  },
+
+  // Sign out
+  signout: async () => {
+    try {
+      await api.post('/api/v1/auth/signout')
+    } catch (error) {
+      // Even if API call fails, clear local storage
+      console.error('Signout error:', error)
+    } finally {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      localStorage.removeItem('user')
+    }
+  },
+
+  // Get current user
+  getCurrentUser: async () => {
+    const response = await api.get('/api/v1/auth/me')
+    return response.data
+  },
+
+  // Refresh token
+  refreshToken: async (refreshToken) => {
+    const response = await api.post(
+      '/api/v1/auth/refresh',
+      {},
+      {
+        headers: {
+          'refresh-token': refreshToken,
+        },
+      }
+    )
     return response.data
   },
 }

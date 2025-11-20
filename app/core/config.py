@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     GA4_SCOPES: list = ["https://www.googleapis.com/auth/analytics.readonly"]
     
     # Supabase Settings (REST API)
+    # These can be overridden via environment variables for deployment
     SUPABASE_URL: str = "https://dvmakvtrtjvffceujlfm.supabase.co"
     SUPABASE_KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2bWFrdnRydGp2ZmZjZXVqbGZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMwMjk4NjgsImV4cCI6MjA3ODYwNTg2OH0.HdpTEQskyYOsQTlfEngNkPOv_UUYkHSRKN57hjD0efw"  # anon key
     
@@ -34,9 +35,16 @@ class Settings(BaseSettings):
     SUPABASE_DB_USER: str = "postgres"
     SUPABASE_DB_PASSWORD: str = "Umang@123"  # Can be overridden via .env
     
+    # For deployment: Use SUPABASE_DB_URL if provided (Railway/Render)
+    SUPABASE_DB_URL: Optional[str] = None
+    
     @property
     def database_url(self) -> str:
         """Construct PostgreSQL connection URL"""
+        # If SUPABASE_DB_URL is provided (e.g., from Railway/Render env vars), use it
+        if self.SUPABASE_DB_URL:
+            return self.SUPABASE_DB_URL
+        # Otherwise, construct from individual components
         # Use psycopg (psycopg3) driver - properly URL encode password
         password = quote_plus(self.SUPABASE_DB_PASSWORD)
         return f"postgresql+psycopg://{self.SUPABASE_DB_USER}:{password}@{self.SUPABASE_DB_HOST}:{self.SUPABASE_DB_PORT}/{self.SUPABASE_DB_NAME}"

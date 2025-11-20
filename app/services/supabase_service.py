@@ -577,63 +577,52 @@ class SupabaseService:
             raise
     
     def upsert_agency_analytics_keyword_rankings(self, rankings: List[Dict]) -> int:
-        """Upsert Agency Analytics keyword rankings (daily records)"""
+        """Upsert Agency Analytics keyword rankings (daily records) - Optimized batch upsert"""
         if not rankings:
             return 0
         
         try:
-            batch_size = 100
+            # Add updated_at timestamp to all records
+            for record in rankings:
+                record["updated_at"] = datetime.now().isoformat()
+            
+            # Use batch upsert - Supabase handles conflicts automatically via unique constraint
+            batch_size = 500  # Larger batch size for better performance
             total_upserted = 0
             
             for i in range(0, len(rankings), batch_size):
                 batch = rankings[i:i + batch_size]
-                for record in batch:
-                    record["updated_at"] = datetime.now().isoformat()
                 
-                # Handle upsert with conflict resolution for keyword_id_date unique constraint
-                for record in batch:
-                    try:
-                        keyword_id_date = record.get("keyword_id_date")
-                        if not keyword_id_date:
-                            logger.warning(f"Skipping ranking without keyword_id_date: {record}")
-                            continue
-                        
-                        # Check if record exists
-                        existing = self.client.table("agency_analytics_keyword_rankings").select("id").eq("keyword_id_date", keyword_id_date).execute()
-                        
-                        if existing.data and len(existing.data) > 0:
-                            # Update existing record
-                            record_id = existing.data[0].get("id")
-                            if record_id:
-                                self.client.table("agency_analytics_keyword_rankings").update(record).eq("id", record_id).execute()
-                                total_upserted += 1
-                            else:
-                                self.client.table("agency_analytics_keyword_rankings").delete().eq("keyword_id_date", keyword_id_date).execute()
-                                self.client.table("agency_analytics_keyword_rankings").insert(record).execute()
-                                total_upserted += 1
-                        else:
-                            # Insert new record
-                            self.client.table("agency_analytics_keyword_rankings").insert(record).execute()
-                            total_upserted += 1
-                    except Exception as record_error:
-                        error_str = str(record_error)
-                        # Check if table doesn't exist
-                        if "Could not find the table" in error_str or "does not exist" in error_str:
-                            logger.warning(f"Table 'agency_analytics_keyword_rankings' does not exist yet. Please run the SQL script to create it.")
-                            return 0  # Return 0 instead of raising error
-                        elif "duplicate key" in error_str.lower() or "23505" in error_str:
-                            try:
-                                keyword_id_date = record.get("keyword_id_date")
-                                if keyword_id_date:
-                                    self.client.table("agency_analytics_keyword_rankings").delete().eq("keyword_id_date", keyword_id_date).execute()
-                                    self.client.table("agency_analytics_keyword_rankings").insert(record).execute()
-                                    total_upserted += 1
-                            except Exception as retry_error:
-                                logger.warning(f"Failed to upsert keyword ranking {record.get('keyword_id_date')}: {str(retry_error)}")
-                        else:
-                            logger.warning(f"Error upserting keyword ranking {record.get('keyword_id_date')}: {error_str}")
+                # Filter out records without required field
+                valid_batch = [r for r in batch if r.get("keyword_id_date")]
                 
-                logger.info(f"Processed keyword ranking batch {i//batch_size + 1}: {len(batch)} records")
+                if not valid_batch:
+                    continue
+                
+                try:
+                    # Batch upsert - Supabase handles conflicts automatically via unique constraint
+                    # The upsert method will update existing records based on unique constraint (keyword_id_date)
+                    result = self.client.table("agency_analytics_keyword_rankings").upsert(valid_batch).execute()
+                    
+                    total_upserted += len(valid_batch)
+                    logger.debug(f"Upserted batch {i//batch_size + 1}: {len(valid_batch)} records")
+                except Exception as batch_error:
+                    error_str = str(batch_error)
+                    # Check if table doesn't exist
+                    if "Could not find the table" in error_str or "does not exist" in error_str:
+                        logger.warning(f"Table 'agency_analytics_keyword_rankings' does not exist yet. Please run the SQL script to create it.")
+                        return 0
+                    # Fallback to smaller batches if large batch fails
+                    logger.warning(f"Batch upsert failed, trying smaller batches: {error_str}")
+                    # Try smaller batches of 50
+                    small_batch_size = 50
+                    for j in range(0, len(valid_batch), small_batch_size):
+                        small_batch = valid_batch[j:j + small_batch_size]
+                        try:
+                            self.client.table("agency_analytics_keyword_rankings").upsert(small_batch).execute()
+                            total_upserted += len(small_batch)
+                        except Exception as small_batch_error:
+                            logger.warning(f"Failed to upsert small batch: {str(small_batch_error)}")
             
             logger.info(f"Total upserted {total_upserted} keyword rankings")
             return total_upserted
@@ -642,7 +631,7 @@ class SupabaseService:
             # Check if table doesn't exist
             if "Could not find the table" in error_str or "does not exist" in error_str:
                 logger.warning(f"Table 'agency_analytics_keyword_rankings' does not exist yet. Please run the SQL script to create it.")
-                return 0  # Return 0 instead of raising error
+                return 0
             logger.error(f"Error upserting keyword rankings: {error_str}")
             raise
     
@@ -659,6 +648,56 @@ class SupabaseService:
             logger.info(f"Upserted keyword ranking summary for keyword {summary.get('keyword_id')}")
             return 1
         except Exception as e:
-            logger.error(f"Error upserting keyword ranking summary: {str(e)}")
+            error_str = str(e)
+            # Check if table doesn't exist
+            if "Could not find the table" in error_str or "does not exist" in error_str:
+                logger.warning(f"Table 'agency_analytics_keyword_ranking_summaries' does not exist yet. Please run the SQL script to create it.")
+                return 0
+            logger.error(f"Error upserting keyword ranking summary: {error_str}")
+            raise
+    
+    def upsert_agency_analytics_keyword_ranking_summaries_batch(self, summaries: List[Dict]) -> int:
+        """Batch upsert Agency Analytics keyword ranking summaries - Optimized"""
+        if not summaries:
+            return 0
+        
+        try:
+            # Add updated_at timestamp to all summaries
+            for summary in summaries:
+                summary["updated_at"] = datetime.now().isoformat()
+            
+            # Batch upsert - Supabase handles conflicts via keyword_id primary key
+            batch_size = 100
+            total_upserted = 0
+            
+            for i in range(0, len(summaries), batch_size):
+                batch = summaries[i:i + batch_size]
+                
+                try:
+                    result = self.client.table("agency_analytics_keyword_ranking_summaries").upsert(batch).execute()
+                    total_upserted += len(batch)
+                    logger.debug(f"Upserted summary batch {i//batch_size + 1}: {len(batch)} summaries")
+                except Exception as batch_error:
+                    error_str = str(batch_error)
+                    if "Could not find the table" in error_str or "does not exist" in error_str:
+                        logger.warning(f"Table 'agency_analytics_keyword_ranking_summaries' does not exist yet. Please run the SQL script to create it.")
+                        return 0
+                    # Fallback to individual upserts
+                    logger.warning(f"Batch upsert failed, falling back to individual upserts: {error_str}")
+                    for summary in batch:
+                        try:
+                            self.client.table("agency_analytics_keyword_ranking_summaries").upsert(summary).execute()
+                            total_upserted += 1
+                        except Exception as summary_error:
+                            logger.warning(f"Failed to upsert summary for keyword {summary.get('keyword_id')}: {str(summary_error)}")
+            
+            logger.info(f"Total upserted {total_upserted} keyword ranking summaries")
+            return total_upserted
+        except Exception as e:
+            error_str = str(e)
+            if "Could not find the table" in error_str or "does not exist" in error_str:
+                logger.warning(f"Table 'agency_analytics_keyword_ranking_summaries' does not exist yet. Please run the SQL script to create it.")
+                return 0
+            logger.error(f"Error upserting keyword ranking summaries: {error_str}")
             raise
 

@@ -17,6 +17,7 @@ import {
   CloudDownload as CloudDownloadIcon,
   Analytics as AnalyticsIcon,
 } from '@mui/icons-material'
+import { motion } from 'framer-motion'
 import { syncAPI } from '../services/api'
 
 function SyncPanel() {
@@ -109,21 +110,22 @@ function SyncPanel() {
       <Box mb={4}>
         <Typography 
           variant="h4" 
-          fontWeight={600} 
+          fontWeight={700} 
           mb={1}
           sx={{
-            fontSize: '24px',
-            letterSpacing: '-0.01em',
+            fontSize: '1.75rem',
+            letterSpacing: '-0.02em',
+            color: 'text.primary'
           }}
         >
           Sync Data
         </Typography>
         <Typography 
-          variant="body2" 
+          variant="body1" 
           color="text.secondary"
-          sx={{ fontSize: '13px' }}
+          sx={{ fontSize: '0.875rem' }}
         >
-          Sync data from Scrunch AI API and Google Analytics 4 to Supabase
+          Sync data from Scrunch AI API, Google Analytics 4, and Agency Analytics to Supabase
         </Typography>
       </Box>
 
@@ -133,7 +135,7 @@ function SyncPanel() {
           sx={{ 
             mb: 3,
             borderRadius: 2,
-            fontSize: '13px',
+            fontSize: '0.875rem',
             whiteSpace: 'pre-line',
           }}
           onClose={() => setSuccess(null)}
@@ -148,7 +150,7 @@ function SyncPanel() {
           sx={{ 
             mb: 3,
             borderRadius: 2,
-            fontSize: '13px',
+            fontSize: '0.875rem',
           }}
           onClose={() => setError(null)}
         >
@@ -156,243 +158,329 @@ function SyncPanel() {
         </Alert>
       )}
 
-      <Grid container spacing={3}>
+      <Grid container spacing={2.5}>
         <Grid item xs={12} md={4}>
-          <Card
-            sx={{
-              height: '100%',
-              background: 'linear-gradient(135deg, rgba(0, 122, 255, 0.08) 0%, rgba(88, 86, 214, 0.08) 100%)',
-              border: `2px solid ${theme.palette.primary.main}`,
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              '&:hover': {
-                transform: 'translateY(-4px)',
-                boxShadow: '0 12px 32px rgba(0, 122, 255, 0.2)',
-              },
-            }}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
           >
-            <CardContent sx={{ p: 4, textAlign: 'center' }}>
-              <CloudDownloadIcon 
-                sx={{ 
-                  fontSize: 48, 
-                  color: 'primary.main', 
-                  mb: 2,
-                }} 
-              />
-              <Typography 
-                variant="h5" 
-                fontWeight={700} 
-                mb={1}
-                sx={{ fontSize: '20px' }}
-              >
-                Sync Scrunch API Data
-              </Typography>
-              <Typography 
-                variant="body2" 
-                color="text.secondary" 
-                mb={3}
-                sx={{ fontSize: '13px', lineHeight: 1.6 }}
-              >
-                Sync all data from Scrunch AI API including brands, prompts, and responses to Supabase database.
-              </Typography>
-              <Button
-                variant="contained"
-                fullWidth
-                size="large"
-                onClick={handleSyncScrunch}
-                disabled={loading}
-                startIcon={
-                  syncing === 'scrunch' ? (
-                    <CircularProgress size={20} thickness={4} sx={{ color: 'white' }} />
-                  ) : (
-                    <SyncIcon sx={{ fontSize: 20 }} />
-                  )
-                }
-                sx={{
-                  borderRadius: 2,
-                  px: 3,
-                  py: 1.5,
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  boxShadow: '0 4px 12px rgba(0, 122, 255, 0.3)',
-                  '&:hover': {
-                    boxShadow: '0 6px 16px rgba(0, 122, 255, 0.4)',
-                  },
-                }}
-              >
-                {syncing === 'scrunch' ? 'Syncing Scrunch Data...' : 'Sync Scrunch API Data'}
-              </Button>
-            </CardContent>
-          </Card>
+            <Card
+              sx={{
+                height: '100%',
+                background: '#FFFFFF',
+                border: `1px solid ${theme.palette.divider}`,
+                borderRadius: 2,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                transition: 'all 0.2s ease-in-out',
+                position: 'relative',
+                overflow: 'hidden',
+                '&:before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '4px',
+                  height: '100%',
+                  backgroundColor: theme.palette.primary.main,
+                },
+                '&:hover': {
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                  transform: 'translateY(-2px)',
+                },
+              }}
+            >
+              <CardContent sx={{ p: 3, textAlign: 'center' }}>
+                <Box
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 1.5,
+                    background: alpha(theme.palette.primary.main, 0.1),
+                    color: theme.palette.primary.main,
+                    display: 'inline-flex',
+                    mb: 2,
+                  }}
+                >
+                  <CloudDownloadIcon sx={{ fontSize: 24 }} />
+                </Box>
+                <Typography 
+                  variant="h6" 
+                  fontWeight={600} 
+                  mb={1}
+                  sx={{ fontSize: '1rem' }}
+                >
+                  Sync Scrunch API Data
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  color="text.secondary" 
+                  mb={3}
+                  sx={{ fontSize: '0.875rem', lineHeight: 1.6 }}
+                >
+                  Sync all data from Scrunch AI API including brands, prompts, and responses to Supabase database.
+                </Typography>
+                <Button
+                  variant="contained"
+                  fullWidth
+                  size="small"
+                  onClick={handleSyncScrunch}
+                  disabled={loading}
+                  startIcon={
+                    syncing === 'scrunch' ? (
+                      <CircularProgress size={16} thickness={4} sx={{ color: 'white' }} />
+                    ) : (
+                      <SyncIcon sx={{ fontSize: 16 }} />
+                    )
+                  }
+                  sx={{
+                    borderRadius: 1.5,
+                    px: 2,
+                    py: 0.75,
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    boxShadow: 'none',
+                    '&:hover': {
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+                    },
+                  }}
+                >
+                  {syncing === 'scrunch' ? 'Syncing...' : 'Sync Scrunch Data'}
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
         </Grid>
 
         <Grid item xs={12} md={4}>
-          <Card
-            sx={{
-              height: '100%',
-              background: 'linear-gradient(135deg, rgba(52, 199, 89, 0.08) 0%, rgba(90, 200, 250, 0.08) 100%)',
-              border: `2px solid ${theme.palette.success.main}`,
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              '&:hover': {
-                transform: 'translateY(-4px)',
-                boxShadow: '0 12px 32px rgba(52, 199, 89, 0.2)',
-              },
-            }}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
           >
-            <CardContent sx={{ p: 4, textAlign: 'center' }}>
-              <AnalyticsIcon 
-                sx={{ 
-                  fontSize: 48, 
-                  color: 'success.main', 
-                  mb: 2,
-                }} 
-              />
-              <Typography 
-                variant="h5" 
-                fontWeight={700} 
-                mb={1}
-                sx={{ fontSize: '20px' }}
-              >
-                Sync GA4 Data
-              </Typography>
-              <Typography 
-                variant="body2" 
-                color="text.secondary" 
-                mb={3}
-                sx={{ fontSize: '13px', lineHeight: 1.6 }}
-              >
-                Sync Google Analytics 4 data for all brands with GA4 property IDs configured. Includes traffic overview, top pages, sources, geographic, devices, and conversions.
-              </Typography>
-              <Button
-                variant="contained"
-                color="success"
-                fullWidth
-                size="large"
-                onClick={handleSyncGA4}
-                disabled={loading}
-                startIcon={
-                  syncing === 'ga4' ? (
-                    <CircularProgress size={20} thickness={4} sx={{ color: 'white' }} />
-                  ) : (
-                    <AnalyticsIcon sx={{ fontSize: 20 }} />
-                  )
-                }
-                sx={{
-                  borderRadius: 2,
-                  px: 3,
-                  py: 1.5,
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  boxShadow: '0 4px 12px rgba(52, 199, 89, 0.3)',
-                  '&:hover': {
-                    boxShadow: '0 6px 16px rgba(52, 199, 89, 0.4)',
-                  },
-                }}
-              >
-                {syncing === 'ga4' ? 'Syncing GA4 Data...' : 'Sync GA4 Data'}
-              </Button>
-            </CardContent>
-          </Card>
+            <Card
+              sx={{
+                height: '100%',
+                background: '#FFFFFF',
+                border: `1px solid ${theme.palette.divider}`,
+                borderRadius: 2,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                transition: 'all 0.2s ease-in-out',
+                position: 'relative',
+                overflow: 'hidden',
+                '&:before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '4px',
+                  height: '100%',
+                  backgroundColor: theme.palette.success.main,
+                },
+                '&:hover': {
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                  transform: 'translateY(-2px)',
+                },
+              }}
+            >
+              <CardContent sx={{ p: 3, textAlign: 'center' }}>
+                <Box
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 1.5,
+                    background: alpha(theme.palette.success.main, 0.1),
+                    color: theme.palette.success.main,
+                    display: 'inline-flex',
+                    mb: 2,
+                  }}
+                >
+                  <AnalyticsIcon sx={{ fontSize: 24 }} />
+                </Box>
+                <Typography 
+                  variant="h6" 
+                  fontWeight={600} 
+                  mb={1}
+                  sx={{ fontSize: '1rem' }}
+                >
+                  Sync GA4 Data
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  color="text.secondary" 
+                  mb={3}
+                  sx={{ fontSize: '0.875rem', lineHeight: 1.6 }}
+                >
+                  Sync Google Analytics 4 data for all brands with GA4 property IDs configured. Includes traffic overview, top pages, sources, geographic, devices, and conversions.
+                </Typography>
+                <Button
+                  variant="contained"
+                  fullWidth
+                  size="small"
+                  onClick={handleSyncGA4}
+                  disabled={loading}
+                  startIcon={
+                    syncing === 'ga4' ? (
+                      <CircularProgress size={16} thickness={4} sx={{ color: 'white' }} />
+                    ) : (
+                      <AnalyticsIcon sx={{ fontSize: 16 }} />
+                    )
+                  }
+                  sx={{
+                    borderRadius: 1.5,
+                    px: 2,
+                    py: 0.75,
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    bgcolor: theme.palette.success.main,
+                    boxShadow: 'none',
+                    '&:hover': {
+                      bgcolor: theme.palette.success.dark,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+                    },
+                  }}
+                >
+                  {syncing === 'ga4' ? 'Syncing...' : 'Sync GA4 Data'}
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
         </Grid>
 
         <Grid item xs={12} md={4}>
-          <Card
-            sx={{
-              height: '100%',
-              background: 'linear-gradient(135deg, rgba(255, 149, 0, 0.08) 0%, rgba(255, 45, 85, 0.08) 100%)',
-              border: `2px solid ${theme.palette.warning.main}`,
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              '&:hover': {
-                transform: 'translateY(-4px)',
-                boxShadow: '0 12px 32px rgba(255, 149, 0, 0.2)',
-              },
-            }}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.2 }}
           >
-            <CardContent sx={{ p: 4, textAlign: 'center' }}>
-              <AnalyticsIcon 
-                sx={{ 
-                  fontSize: 48, 
-                  color: 'warning.main', 
-                  mb: 2,
-                }} 
-              />
-              <Typography 
-                variant="h5" 
-                fontWeight={700} 
-                mb={1}
-                sx={{ fontSize: '20px' }}
-              >
-                Sync Agency Analytics Data
-              </Typography>
-              <Typography 
-                variant="body2" 
-                color="text.secondary" 
-                mb={3}
-                sx={{ fontSize: '13px', lineHeight: 1.6 }}
-              >
-                Sync Agency Analytics campaigns and quarterly ranking data. Includes Google rankings, Bing rankings, search volume, and competition metrics.
-              </Typography>
-              <Button
-                variant="contained"
-                color="warning"
-                fullWidth
-                size="large"
-                onClick={handleSyncAgencyAnalytics}
-                disabled={loading}
-                startIcon={
-                  syncing === 'agency-analytics' ? (
-                    <CircularProgress size={20} thickness={4} sx={{ color: 'white' }} />
-                  ) : (
-                    <AnalyticsIcon sx={{ fontSize: 20 }} />
-                  )
-                }
-                sx={{
-                  borderRadius: 2,
-                  px: 3,
-                  py: 1.5,
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  boxShadow: '0 4px 12px rgba(255, 149, 0, 0.3)',
-                  '&:hover': {
-                    boxShadow: '0 6px 16px rgba(255, 149, 0, 0.4)',
-                  },
-                }}
-              >
-                {syncing === 'agency-analytics' ? 'Syncing Agency Analytics...' : 'Sync Agency Analytics'}
-              </Button>
-            </CardContent>
-          </Card>
+            <Card
+              sx={{
+                height: '100%',
+                background: '#FFFFFF',
+                border: `1px solid ${theme.palette.divider}`,
+                borderRadius: 2,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                transition: 'all 0.2s ease-in-out',
+                position: 'relative',
+                overflow: 'hidden',
+                '&:before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '4px',
+                  height: '100%',
+                  backgroundColor: theme.palette.warning.main,
+                },
+                '&:hover': {
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                  transform: 'translateY(-2px)',
+                },
+              }}
+            >
+              <CardContent sx={{ p: 3, textAlign: 'center' }}>
+                <Box
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 1.5,
+                    background: alpha(theme.palette.warning.main, 0.1),
+                    color: theme.palette.warning.main,
+                    display: 'inline-flex',
+                    mb: 2,
+                  }}
+                >
+                  <AnalyticsIcon sx={{ fontSize: 24 }} />
+                </Box>
+                <Typography 
+                  variant="h6" 
+                  fontWeight={600} 
+                  mb={1}
+                  sx={{ fontSize: '1rem' }}
+                >
+                  Sync Agency Analytics Data
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  color="text.secondary" 
+                  mb={3}
+                  sx={{ fontSize: '0.875rem', lineHeight: 1.6 }}
+                >
+                  Sync Agency Analytics campaigns and quarterly ranking data. Includes Google rankings, Bing rankings, search volume, and competition metrics.
+                </Typography>
+                <Button
+                  variant="contained"
+                  fullWidth
+                  size="small"
+                  onClick={handleSyncAgencyAnalytics}
+                  disabled={loading}
+                  startIcon={
+                    syncing === 'agency-analytics' ? (
+                      <CircularProgress size={16} thickness={4} sx={{ color: 'white' }} />
+                    ) : (
+                      <AnalyticsIcon sx={{ fontSize: 16 }} />
+                    )
+                  }
+                  sx={{
+                    borderRadius: 1.5,
+                    px: 2,
+                    py: 0.75,
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    bgcolor: theme.palette.warning.main,
+                    boxShadow: 'none',
+                    '&:hover': {
+                      bgcolor: theme.palette.warning.dark,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+                    },
+                  }}
+                >
+                  {syncing === 'agency-analytics' ? 'Syncing...' : 'Sync Agency Analytics'}
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
         </Grid>
       </Grid>
 
       {loading && syncing && (
         <Box mt={3}>
-          <Card>
-            <CardContent sx={{ p: 2.5 }}>
-              <Box display="flex" alignItems="center" justifyContent="space-between" mb={1.5}>
-                <Typography 
-                  variant="body2" 
-                  sx={{ fontSize: '13px', fontWeight: 600 }}
-                >
-                  {syncing === 'scrunch' ? 'Syncing Scrunch AI data...' : 
-                   syncing === 'ga4' ? 'Syncing GA4 data...' : 
-                   'Syncing Agency Analytics data...'}
-                </Typography>
-                <Typography 
-                  variant="caption" 
-                  color="text.secondary"
-                  sx={{ fontSize: '12px' }}
-                >
-                  This may take a few minutes
-                </Typography>
-              </Box>
-              <LinearProgress 
-                sx={{ 
-                  borderRadius: 1,
-                  height: 6,
-                }}
-              />
-            </CardContent>
-          </Card>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <Card
+              sx={{
+                borderRadius: 2,
+                border: `1px solid ${theme.palette.divider}`,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+              }}
+            >
+              <CardContent sx={{ p: 2.5 }}>
+                <Box display="flex" alignItems="center" justifyContent="space-between" mb={1.5}>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ fontSize: '0.875rem', fontWeight: 600 }}
+                  >
+                    {syncing === 'scrunch' ? 'Syncing Scrunch AI data...' : 
+                     syncing === 'ga4' ? 'Syncing GA4 data...' : 
+                     'Syncing Agency Analytics data...'}
+                  </Typography>
+                  <Typography 
+                    variant="caption" 
+                    color="text.secondary"
+                    sx={{ fontSize: '0.75rem' }}
+                  >
+                    This may take a few minutes
+                  </Typography>
+                </Box>
+                <LinearProgress 
+                  sx={{ 
+                    borderRadius: 1,
+                    height: 6,
+                  }}
+                />
+              </CardContent>
+            </Card>
+          </motion.div>
         </Box>
       )}
     </Box>

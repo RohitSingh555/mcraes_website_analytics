@@ -152,19 +152,20 @@ function AgencyAnalytics() {
       <Box mb={4}>
         <Typography 
           variant="h4" 
-          fontWeight={600} 
+          fontWeight={700} 
           mb={1}
           sx={{
-            fontSize: '24px',
-            letterSpacing: '-0.01em',
+            fontSize: '1.75rem',
+            letterSpacing: '-0.02em',
+            color: 'text.primary'
           }}
         >
           Agency Analytics
         </Typography>
         <Typography 
-          variant="body2" 
+          variant="body1" 
           color="text.secondary"
-          sx={{ fontSize: '13px' }}
+          sx={{ fontSize: '0.875rem' }}
         >
           Campaign rankings and performance metrics
         </Typography>
@@ -176,7 +177,7 @@ function AgencyAnalytics() {
           sx={{ 
             mb: 3,
             borderRadius: 2,
-            fontSize: '13px',
+            fontSize: '0.875rem',
           }}
           onClose={() => setError(null)}
         >
@@ -184,8 +185,15 @@ function AgencyAnalytics() {
         </Alert>
       )}
 
-      <Card sx={{ mb: 3 }}>
-        <CardContent sx={{ p: 3 }}>
+      <Card 
+        sx={{ 
+          mb: 3,
+          borderRadius: 2,
+          border: `1px solid ${theme.palette.divider}`,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        }}
+      >
+        <CardContent sx={{ p: 2.5 }}>
           <FormControl fullWidth sx={{ mb: 2 }}>
             <InputLabel>Select Campaign</InputLabel>
             <Select
@@ -208,13 +216,19 @@ function AgencyAnalytics() {
       </Card>
 
       {selectedCampaign && (
-        <Card>
-          <CardContent sx={{ p: 3 }}>
+        <Card
+          sx={{
+            borderRadius: 2,
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+          }}
+        >
+          <CardContent sx={{ p: 2.5 }}>
             <Typography 
               variant="h6" 
               fontWeight={600} 
               mb={3}
-              sx={{ fontSize: '18px' }}
+              sx={{ fontSize: '1rem' }}
             >
               Campaign Rankings (Quarterly)
             </Typography>
@@ -231,7 +245,7 @@ function AgencyAnalytics() {
               <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
                 <Table>
                   <TableHead>
-                    <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.08) }}>
+                    <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
                       <TableCell sx={{ fontWeight: 700, fontSize: '13px' }}>Date</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700, fontSize: '13px' }}>Google Ranking Count</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700, fontSize: '13px' }}>Google Ranking Change</TableCell>
@@ -285,13 +299,20 @@ function AgencyAnalytics() {
       )}
 
       {selectedCampaign && (
-        <Card sx={{ mt: 3 }}>
-          <CardContent sx={{ p: 3 }}>
+        <Card 
+          sx={{ 
+            mt: 3,
+            borderRadius: 2,
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+          }}
+        >
+          <CardContent sx={{ p: 2.5 }}>
             <Typography 
               variant="h6" 
               fontWeight={600} 
               mb={3}
-              sx={{ fontSize: '18px' }}
+              sx={{ fontSize: '1rem' }}
             >
               Keyword Rankings
             </Typography>
@@ -301,14 +322,21 @@ function AgencyAnalytics() {
                 <CircularProgress size={32} thickness={4} />
               </Box>
             ) : keywordRankings.length === 0 ? (
-              <Alert severity="info" sx={{ borderRadius: 2 }}>
+              <Alert severity="info" sx={{ borderRadius: 2, fontSize: '0.875rem' }}>
                 No keyword ranking data available for this campaign. Please sync Agency Analytics data first.
               </Alert>
             ) : (
-              <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
+              <TableContainer 
+                component={Card}
+                sx={{ 
+                  borderRadius: 2,
+                  border: `1px solid ${theme.palette.divider}`,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                }}
+              >
                 <Table>
                   <TableHead>
-                    <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.08) }}>
+                    <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
                       <TableCell sx={{ fontWeight: 700, fontSize: '13px' }}>Keyword</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700, fontSize: '13px' }}>Google Ranking</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700, fontSize: '13px' }}>Google Mobile</TableCell>

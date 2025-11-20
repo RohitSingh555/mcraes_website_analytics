@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import uvicorn
 from app.core.config import settings
-from app.api import sync, data, database
+from app.api import sync, data, database, auth
 from app.db.database import init_db, check_db_connection
 from app.core.logging_config import setup_logging
 import logging
@@ -55,6 +55,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
 app.include_router(sync.router, prefix="/api/v1", tags=["sync"])
 app.include_router(data.router, prefix="/api/v1", tags=["data"])
 app.include_router(database.router, prefix="/api/v1", tags=["database"])

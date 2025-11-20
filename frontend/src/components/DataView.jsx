@@ -27,6 +27,7 @@ import {
   Article as ArticleIcon,
   ChatBubble as ChatBubbleIcon
 } from '@mui/icons-material'
+import { motion } from 'framer-motion'
 import { syncAPI } from '../services/api'
 
 function DataView() {
@@ -92,13 +93,19 @@ function DataView() {
   const renderTable = () => {
     if (data.length === 0) {
       return (
-        <Card>
+        <Card
+          sx={{
+            borderRadius: 2,
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+          }}
+        >
           <CardContent sx={{ p: 4, textAlign: 'center' }}>
             <Typography 
               variant="h6" 
               color="text.secondary" 
               py={3}
-              sx={{ fontSize: '16px' }}
+              sx={{ fontSize: '1rem' }}
             >
               No data available. Sync data first to view it here.
             </Typography>
@@ -110,16 +117,17 @@ function DataView() {
     if (dataType === 'brands') {
       return (
         <TableContainer 
-          component={Paper}
+          component={Card}
           sx={{
             borderRadius: 2,
-            border: '1px solid rgba(0, 0, 0, 0.06)',
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
             overflow: 'hidden',
           }}
         >
           <Table>
             <TableHead>
-              <TableRow sx={{ bgcolor: alpha(theme.palette.grey[100], 0.5) }}>
+              <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
                 <TableCell sx={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', py: 1.5 }}>ID</TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', py: 1.5 }}>Name</TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', py: 1.5 }}>Website</TableCell>
@@ -162,16 +170,17 @@ function DataView() {
     if (dataType === 'prompts') {
       return (
         <TableContainer 
-          component={Paper}
+          component={Card}
           sx={{
             borderRadius: 2,
-            border: '1px solid rgba(0, 0, 0, 0.06)',
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
             overflow: 'hidden',
           }}
         >
           <Table>
             <TableHead>
-              <TableRow sx={{ bgcolor: alpha(theme.palette.grey[100], 0.5) }}>
+              <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
                 <TableCell sx={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', py: 1.5 }}>ID</TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', py: 1.5 }}>Text</TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', py: 1.5 }}>Stage</TableCell>
@@ -251,16 +260,17 @@ function DataView() {
     if (dataType === 'responses') {
       return (
         <TableContainer 
-          component={Paper}
+          component={Card}
           sx={{
             borderRadius: 2,
-            border: '1px solid rgba(0, 0, 0, 0.06)',
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
             overflow: 'hidden',
           }}
         >
           <Table>
             <TableHead>
-              <TableRow sx={{ bgcolor: alpha(theme.palette.grey[100], 0.5) }}>
+              <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
                 <TableCell sx={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', py: 1.5 }}>Platform</TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', py: 1.5 }}>Stage</TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', py: 1.5 }}>Brand Sentiment</TableCell>
@@ -387,32 +397,34 @@ function DataView() {
 
   return (
     <Box>
-      <Box mb={3}>
+      <Box mb={4}>
         <Typography 
           variant="h4" 
-          fontWeight={600} 
+          fontWeight={700} 
           mb={1}
           sx={{
-            fontSize: '24px',
-            letterSpacing: '-0.01em',
+            fontSize: '1.75rem',
+            letterSpacing: '-0.02em',
+            color: 'text.primary'
           }}
         >
           View Data
         </Typography>
         <Typography 
-          variant="body2" 
+          variant="body1" 
           color="text.secondary"
-          sx={{ fontSize: '13px' }}
+          sx={{ fontSize: '0.875rem' }}
         >
           Browse synced data from Scrunch AI
         </Typography>
       </Box>
 
-      <Paper 
+      <Card
         sx={{ 
           mb: 3,
           borderRadius: 2,
-          border: '1px solid rgba(0, 0, 0, 0.06)',
+          border: `1px solid ${theme.palette.divider}`,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
           overflow: 'hidden',
         }}
       >
@@ -420,18 +432,21 @@ function DataView() {
           value={dataType}
           onChange={(e, newValue) => setDataType(newValue)}
           sx={{
-            borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
+            borderBottom: `1px solid ${theme.palette.divider}`,
             '& .MuiTab-root': {
-              minHeight: 48,
-              fontSize: '14px',
-              fontWeight: 600,
+              minHeight: 40,
+              fontSize: '0.875rem',
+              fontWeight: 500,
               textTransform: 'none',
+              borderRadius: 1.5,
+              mx: 0.5,
               '&.Mui-selected': {
                 color: 'primary.main',
+                bgcolor: alpha(theme.palette.primary.main, 0.08),
               },
             },
             '& .MuiTabs-indicator': {
-              height: 2,
+              display: 'none',
             },
           }}
         >
@@ -457,16 +472,23 @@ function DataView() {
             sx={{ px: 3 }}
           />
         </Tabs>
-      </Paper>
+      </Card>
 
       {(dataType === 'prompts' || dataType === 'responses') && (
-        <Card sx={{ mb: 3 }}>
-          <CardContent sx={{ p: 3 }}>
+        <Card 
+          sx={{ 
+            mb: 3,
+            borderRadius: 2,
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+          }}
+        >
+          <CardContent sx={{ p: 2.5 }}>
             <Typography 
               variant="h6" 
               mb={2} 
               fontWeight={600}
-              sx={{ fontSize: '16px', letterSpacing: '-0.01em' }}
+              sx={{ fontSize: '1rem', letterSpacing: '-0.01em' }}
             >
               Filters
             </Typography>

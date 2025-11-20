@@ -186,19 +186,20 @@ function BrandAnalytics() {
         <Box>
           <Typography 
             variant="h4" 
-            fontWeight={600} 
-            mb={0.5}
+            fontWeight={700} 
+            mb={1}
             sx={{
-              fontSize: '24px',
-              letterSpacing: '-0.01em',
+              fontSize: '1.75rem',
+              letterSpacing: '-0.02em',
+              color: 'text.primary'
             }}
           >
             Brand Analytics
           </Typography>
           <Typography 
-            variant="body2" 
+            variant="body1" 
             color="text.secondary"
-            sx={{ fontSize: '13px' }}
+            sx={{ fontSize: '0.875rem' }}
           >
             Comprehensive insights and performance metrics
           </Typography>
@@ -242,9 +243,15 @@ function BrandAnalytics() {
       </Box>
 
       {/* Key Metrics */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
+      <Grid container spacing={2.5} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
+          <Card
+            sx={{
+              borderRadius: 2,
+              border: `1px solid ${theme.palette.divider}`,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+            }}
+          >
             <CardContent sx={{ p: 2.5 }}>
               <Typography 
                 variant="caption" 
