@@ -420,6 +420,29 @@ export const reportingAPI = {
     const response = await api.get(`/api/v1/data/reporting-dashboard/${brandId}/diagnostics`)
     return response.data
   },
+  
+  // Query Scrunch analytics using Query API
+  queryScrunchAnalytics: async (brandId, fields, startDate = null, endDate = null, limit = 50000, offset = 0) => {
+    const params = new URLSearchParams()
+    params.append('fields', Array.isArray(fields) ? fields.join(',') : fields)
+    if (startDate) params.append('start_date', startDate)
+    if (endDate) params.append('end_date', endDate)
+    params.append('limit', limit)
+    params.append('offset', offset)
+    
+    const response = await api.get(`/api/v1/data/scrunch/query/${brandId}?${params.toString()}`)
+    return response.data
+  },
+  
+  // Get Scrunch dashboard data (separate endpoint for parallel loading)
+  getScrunchDashboard: async (brandId, startDate = null, endDate = null) => {
+    const params = new URLSearchParams()
+    if (startDate) params.append('start_date', startDate)
+    if (endDate) params.append('end_date', endDate)
+    
+    const response = await api.get(`/api/v1/data/reporting-dashboard/${brandId}/scrunch?${params.toString()}`)
+    return response.data
+  },
 }
 
 // Authentication API endpoints

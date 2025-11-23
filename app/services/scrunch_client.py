@@ -164,4 +164,40 @@ class ScrunchAPIClient:
         
         logger.info(f"Fetched {len(all_responses)} total responses")
         return all_responses
+    
+    async def query_analytics(
+        self,
+        brand_id: int,
+        fields: List[str],
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        limit: int = 50000,
+        offset: int = 0
+    ) -> Dict:
+        """
+        Query analytics data using the Query API
+        
+        Args:
+            brand_id: Brand ID
+            fields: List of dimension and metric fields to retrieve
+            start_date: Start date (YYYY-MM-DD), last 90 days only
+            end_date: End date (YYYY-MM-DD)
+            limit: Max results (default 50,000)
+            offset: Pagination offset
+        
+        Returns:
+            Dict with query results
+        """
+        logger.info(f"Querying analytics for brand {brand_id} with fields: {fields}")
+        params = {
+            "fields": ",".join(fields),
+            "limit": limit,
+            "offset": offset
+        }
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
+        
+        return await self._request("GET", f"/{brand_id}/query", params=params)
 

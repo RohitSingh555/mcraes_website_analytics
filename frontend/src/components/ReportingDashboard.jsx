@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect } from "react";
 import {
   Box,
   Card,
@@ -30,7 +30,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-} from '@mui/material'
+} from "@mui/material";
 import {
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
@@ -51,504 +51,728 @@ import {
   Share as ShareIcon,
   ContentCopy as ContentCopyIcon,
   Check as CheckIcon,
-} from '@mui/icons-material'
-import { motion } from 'framer-motion'
-import { 
-  LineChart, Line,
-  BarChart, Bar, 
-  PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
-} from 'recharts'
-import { reportingAPI, syncAPI } from '../services/api'
+} from "@mui/icons-material";
+import { motion } from "framer-motion";
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+import { reportingAPI, syncAPI } from "../services/api";
+import ScrunchVisualizations from "./reporting/charts/ScrunchVisualizations";
 
 // Define all KPIs in order: GA4 (9), AgencyAnalytics (8), Scrunch (11)
 const KPI_ORDER = [
   // GA4 KPIs
-  'users', 'sessions', 'new_users', 'engaged_sessions', 'bounce_rate', 'avg_session_duration', 'ga4_engagement_rate', 'conversions', 'revenue',
+  "users",
+  "sessions",
+  "new_users",
+  "engaged_sessions",
+  "bounce_rate",
+  "avg_session_duration",
+  "ga4_engagement_rate",
+  "conversions",
+  "revenue",
   // AgencyAnalytics KPIs
   // 'impressions', 'clicks', 'ctr', // COMMENTED OUT: Estimated KPIs (not 100% accurate from source)
-  'search_volume', 'avg_keyword_rank', 'ranking_change',
+  "search_volume",
+  "avg_keyword_rank",
+  "ranking_change",
   // New/Updated Google Ranking KPIs
-  'google_ranking_count', 'google_ranking', 'google_ranking_change', 'all_keywords_ranking', 'keyword_ranking_change_and_volume',
+  "google_ranking_count",
+  "google_ranking",
+  "google_ranking_change",
+  "all_keywords_ranking",
+  "keyword_ranking_change_and_volume",
   // Scrunch KPIs
   // 'influencer_reach', 'scrunch_engagement_rate', 'total_interactions', 'cost_per_engagement', // COMMENTED OUT: Estimated KPIs (not 100% accurate from source)
-  'total_citations', 'brand_presence_rate', 'brand_sentiment_score', 'top10_prompt_percentage', 'prompt_search_volume',
+  "total_citations",
+  "brand_presence_rate",
+  "brand_sentiment_score",
+  "top10_prompt_percentage",
+  "prompt_search_volume",
   // New Scrunch KPIs
-  'competitive_benchmarking'
-]
+  "competitive_benchmarking",
+];
 
 // KPI metadata for display
 const KPI_METADATA = {
   // GA4 KPIs
-  'users': { label: 'Users', source: 'GA4', icon: 'People' },
-  'sessions': { label: 'Sessions', source: 'GA4', icon: 'BarChart' },
-  'new_users': { label: 'New Users', source: 'GA4', icon: 'PersonAdd' },
-  'engaged_sessions': { label: 'Engaged Sessions', source: 'GA4', icon: 'People' },
-  'bounce_rate': { label: 'Bounce Rate', source: 'GA4', icon: 'TrendingDown' },
-  'avg_session_duration': { label: 'Avg Session Duration', source: 'GA4', icon: 'AccessTime' },
-  'ga4_engagement_rate': { label: 'Engagement Rate', source: 'GA4', icon: 'TrendingUp' },
-  'conversions': { label: 'Conversions', source: 'GA4', icon: 'TrendingUp' },
-  'revenue': { label: 'Revenue', source: 'GA4', icon: 'TrendingUp' },
+  users: { label: "Users", source: "GA4", icon: "People" },
+  sessions: { label: "Sessions", source: "GA4", icon: "BarChart" },
+  new_users: { label: "New Users", source: "GA4", icon: "PersonAdd" },
+  engaged_sessions: {
+    label: "Engaged Sessions",
+    source: "GA4",
+    icon: "People",
+  },
+  bounce_rate: { label: "Bounce Rate", source: "GA4", icon: "TrendingDown" },
+  avg_session_duration: {
+    label: "Avg Session Duration",
+    source: "GA4",
+    icon: "AccessTime",
+  },
+  ga4_engagement_rate: {
+    label: "Engagement Rate",
+    source: "GA4",
+    icon: "TrendingUp",
+  },
+  conversions: { label: "Conversions", source: "GA4", icon: "TrendingUp" },
+  revenue: { label: "Revenue", source: "GA4", icon: "TrendingUp" },
   // AgencyAnalytics KPIs
   // 'impressions': { label: 'Impressions', source: 'AgencyAnalytics', icon: 'Visibility' }, // COMMENTED OUT: Estimated KPI
   // 'clicks': { label: 'Clicks', source: 'AgencyAnalytics', icon: 'TrendingUp' }, // COMMENTED OUT: Estimated KPI
   // 'ctr': { label: 'CTR', source: 'AgencyAnalytics', icon: 'BarChart' }, // COMMENTED OUT: Estimated KPI
-  'search_volume': { label: 'Search Volume', source: 'AgencyAnalytics', icon: 'Search' },
-  'avg_keyword_rank': { label: 'Avg Keyword Rank', source: 'AgencyAnalytics', icon: 'Search' },
-  'ranking_change': { label: 'Avg Ranking Change', source: 'AgencyAnalytics', icon: 'TrendingUp' },
+  search_volume: {
+    label: "Search Volume",
+    source: "AgencyAnalytics",
+    icon: "Search",
+  },
+  avg_keyword_rank: {
+    label: "Avg Keyword Rank",
+    source: "AgencyAnalytics",
+    icon: "Search",
+  },
+  ranking_change: {
+    label: "Avg Ranking Change",
+    source: "AgencyAnalytics",
+    icon: "TrendingUp",
+  },
   // New/Updated Google Ranking KPIs
-  'google_ranking_count': { label: 'Google Ranking Count', source: 'AgencyAnalytics', icon: 'Search' },
-  'google_ranking': { label: 'Google Ranking', source: 'AgencyAnalytics', icon: 'Search' },
-  'google_ranking_change': { label: 'Google Ranking Change', source: 'AgencyAnalytics', icon: 'TrendingUp' },
-  'all_keywords_ranking': { label: 'All Keywords Ranking', source: 'AgencyAnalytics', icon: 'List' },
-  'keyword_ranking_change_and_volume': { label: 'Keyword Ranking Change and Volume', source: 'AgencyAnalytics', icon: 'BarChart' },
+  google_ranking_count: {
+    label: "Google Ranking Count",
+    source: "AgencyAnalytics",
+    icon: "Search",
+  },
+  google_ranking: {
+    label: "Google Ranking",
+    source: "AgencyAnalytics",
+    icon: "Search",
+  },
+  google_ranking_change: {
+    label: "Google Ranking Change",
+    source: "AgencyAnalytics",
+    icon: "TrendingUp",
+  },
+  all_keywords_ranking: {
+    label: "All Keywords Ranking",
+    source: "AgencyAnalytics",
+    icon: "List",
+  },
+  keyword_ranking_change_and_volume: {
+    label: "Keyword Ranking Change and Volume",
+    source: "AgencyAnalytics",
+    icon: "BarChart",
+  },
   // Scrunch KPIs
   // 'influencer_reach': { label: 'Influencer Reach', source: 'Scrunch', icon: 'People' }, // COMMENTED OUT: Estimated KPI
-  'total_citations': { label: 'Total Citations', source: 'Scrunch', icon: 'Link' },
-  'brand_presence_rate': { label: 'Brand Presence Rate', source: 'Scrunch', icon: 'CheckCircle' },
-  'brand_sentiment_score': { label: 'Brand Sentiment Score', source: 'Scrunch', icon: 'SentimentSatisfied' },
+  total_citations: {
+    label: "Total Citations",
+    source: "Scrunch",
+    icon: "Link",
+  },
+  brand_presence_rate: {
+    label: "Brand Presence Rate",
+    source: "Scrunch",
+    icon: "CheckCircle",
+  },
+  brand_sentiment_score: {
+    label: "Brand Sentiment Score",
+    source: "Scrunch",
+    icon: "SentimentSatisfied",
+  },
   // 'scrunch_engagement_rate': { label: 'Engagement Rate', source: 'Scrunch', icon: 'TrendingUp' }, // COMMENTED OUT: Estimated KPI
   // 'total_interactions': { label: 'Total Interactions', source: 'Scrunch', icon: 'Visibility' }, // COMMENTED OUT: Estimated KPI
   // 'cost_per_engagement': { label: 'Cost per Engagement', source: 'Scrunch', icon: 'TrendingUp' }, // COMMENTED OUT: Estimated KPI
-  'top10_prompt_percentage': { label: 'Top 10 Prompt', source: 'Scrunch', icon: 'Article' },
-  'prompt_search_volume': { label: 'Prompt Search Volume', source: 'Scrunch', icon: 'TrendingUp' },
+  top10_prompt_percentage: {
+    label: "Top 10 Prompt",
+    source: "Scrunch",
+    icon: "Article",
+  },
+  prompt_search_volume: {
+    label: "Prompt Search Volume",
+    source: "Scrunch",
+    icon: "TrendingUp",
+  },
   // New Scrunch KPIs
-  'competitive_benchmarking': { label: 'Competitive Benchmarking', source: 'Scrunch', icon: 'BarChart' },
-}
+  competitive_benchmarking: {
+    label: "Competitive Benchmarking",
+    source: "Scrunch",
+    icon: "BarChart",
+  },
+};
 
 // Date range presets
 const DATE_PRESETS = [
-  { label: 'Last 7 days', days: 7 },
-  { label: 'Last 30 days', days: 30 },
-  { label: 'Last 90 days', days: 90 },
-  { label: 'Last 6 months', days: 180 },
-  { label: 'Last year', days: 365 },
-]
+  { label: "Last 7 days", days: 7 },
+  { label: "Last 30 days", days: 30 },
+  { label: "Last 90 days", days: 90 },
+  { label: "Last 6 months", days: 180 },
+  { label: "Last year", days: 365 },
+];
 
 // Helper function to get month name
 const getMonthName = (monthNumber) => {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  return months[monthNumber - 1] || ''
-}
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+  return months[monthNumber - 1] || "";
+};
 
 function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
-  const isPublic = !!publicSlug
-  const [brands, setBrands] = useState([])
-  const [selectedBrandId, setSelectedBrandId] = useState(null)
-  const [dashboardData, setDashboardData] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-  const [selectedKPIs, setSelectedKPIs] = useState(new Set(KPI_ORDER))
-  const [tempSelectedKPIs, setTempSelectedKPIs] = useState(new Set(KPI_ORDER)) // For dialog
-  const [showKPISelector, setShowKPISelector] = useState(false)
+  const isPublic = !!publicSlug;
+  const [brands, setBrands] = useState([]);
+  const [selectedBrandId, setSelectedBrandId] = useState(null);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [scrunchData, setScrunchData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingScrunch, setLoadingScrunch] = useState(false);
+  const [error, setError] = useState(null);
+  const [selectedKPIs, setSelectedKPIs] = useState(new Set(KPI_ORDER));
+  const [tempSelectedKPIs, setTempSelectedKPIs] = useState(new Set(KPI_ORDER)); // For dialog
+  const [showKPISelector, setShowKPISelector] = useState(false);
   // Initialize with "Last 7 days" as default
   const getDefaultDates = () => {
-    const end = new Date()
-    const start = new Date()
-    start.setDate(start.getDate() - 7)
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 7);
     return {
-      start: start.toISOString().split('T')[0],
-      end: end.toISOString().split('T')[0]
-    }
-  }
-  
-  const defaultDates = getDefaultDates()
-  const [startDate, setStartDate] = useState(defaultDates.start)
-  const [endDate, setEndDate] = useState(defaultDates.end)
-  const [datePreset, setDatePreset] = useState('Last 7 days')
-  const [brandAnalytics, setBrandAnalytics] = useState(null)
-  const [loadingAnalytics, setLoadingAnalytics] = useState(false)
-  const [showShareDialog, setShowShareDialog] = useState(false)
-  const [shareableUrl, setShareableUrl] = useState('')
-  const [copied, setCopied] = useState(false)
-  const [selectedBrandSlug, setSelectedBrandSlug] = useState(null)
-  const theme = useTheme()
+      start: start.toISOString().split("T")[0],
+      end: end.toISOString().split("T")[0],
+    };
+  };
+
+  const defaultDates = getDefaultDates();
+  const [startDate, setStartDate] = useState(defaultDates.start);
+  const [endDate, setEndDate] = useState(defaultDates.end);
+  const [datePreset, setDatePreset] = useState("Last 7 days");
+  const [brandAnalytics, setBrandAnalytics] = useState(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [shareableUrl, setShareableUrl] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [selectedBrandSlug, setSelectedBrandSlug] = useState(null);
+  const theme = useTheme();
 
   // Load saved KPI preferences from localStorage
   useEffect(() => {
-    const savedKPIs = localStorage.getItem('reportingDashboardSelectedKPIs')
+    const savedKPIs = localStorage.getItem("reportingDashboardSelectedKPIs");
     if (savedKPIs) {
       try {
-        const parsed = JSON.parse(savedKPIs)
-        setSelectedKPIs(new Set(parsed))
-        setTempSelectedKPIs(new Set(parsed))
+        const parsed = JSON.parse(savedKPIs);
+        setSelectedKPIs(new Set(parsed));
+        setTempSelectedKPIs(new Set(parsed));
       } catch (e) {
-        console.error('Error loading saved KPIs:', e)
+        console.error("Error loading saved KPIs:", e);
       }
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
     if (isPublic && publicSlug) {
       // For public mode, fetch brand by slug and set selectedBrandId
       const fetchPublicBrand = async () => {
         try {
-          const brand = await reportingAPI.getBrandBySlug(publicSlug)
-          setSelectedBrandId(brand.id)
+          const brand = await reportingAPI.getBrandBySlug(publicSlug);
+          setSelectedBrandId(brand.id);
         } catch (err) {
-          setError(err.response?.data?.detail || 'Failed to load brand')
+          setError(err.response?.data?.detail || "Failed to load brand");
         }
-      }
-      fetchPublicBrand()
+      };
+      fetchPublicBrand();
     } else {
-      loadBrands()
+      loadBrands();
     }
-  }, [isPublic, publicSlug])
+  }, [isPublic, publicSlug]);
 
   useEffect(() => {
     if (selectedBrandId) {
       // Clear previous data when switching brands
-      setDashboardData(null)
-      setBrandAnalytics(null)
-      setError(null)
-      loadDashboardData()
+      setDashboardData(null);
+      setScrunchData(null);
+      setBrandAnalytics(null);
+      setError(null);
+      // Load all data sources in parallel
+      loadDashboardData();
+      loadScrunchData();
       if (!isPublic) {
-        loadBrandAnalytics()
+        loadBrandAnalytics();
       }
     }
-  }, [selectedBrandId, startDate, endDate, isPublic])
+  }, [selectedBrandId, startDate, endDate, isPublic]);
 
   const loadBrands = async () => {
     try {
-      const data = await syncAPI.getBrands()
-      const brandsList = data.items || []
-      console.log('Loaded brands:', brandsList.map(b => ({ id: b.id, name: b.name, slug: b.slug })))
-      setBrands(brandsList)
+      const data = await syncAPI.getBrands();
+      const brandsList = data.items || [];
+      console.log(
+        "Loaded brands:",
+        brandsList.map((b) => ({ id: b.id, name: b.name, slug: b.slug }))
+      );
+      setBrands(brandsList);
       if (brandsList.length > 0) {
-        setSelectedBrandId(brandsList[0].id)
+        setSelectedBrandId(brandsList[0].id);
         // Set slug for first brand
         if (brandsList[0].slug) {
-          setSelectedBrandSlug(brandsList[0].slug)
+          setSelectedBrandSlug(brandsList[0].slug);
         }
       }
     } catch (err) {
-      console.error('Error loading brands:', err)
-      setError(err.response?.data?.detail || 'Failed to load brands')
+      console.error("Error loading brands:", err);
+      setError(err.response?.data?.detail || "Failed to load brands");
     }
-  }
+  };
 
   // Update slug when brand changes
   useEffect(() => {
     if (selectedBrandId && brands.length > 0) {
-      const selectedBrand = brands.find(b => b.id === selectedBrandId)
+      const selectedBrand = brands.find((b) => b.id === selectedBrandId);
       if (selectedBrand?.slug) {
-        setSelectedBrandSlug(selectedBrand.slug)
+        setSelectedBrandSlug(selectedBrand.slug);
       } else {
-        setSelectedBrandSlug(null)
+        setSelectedBrandSlug(null);
       }
     }
-  }, [selectedBrandId, brands])
+  }, [selectedBrandId, brands]);
 
   const handleOpenShareDialog = () => {
     if (selectedBrandSlug) {
-      const baseUrl = window.location.origin
-      const url = `${baseUrl}/reporting/${selectedBrandSlug}`
-      setShareableUrl(url)
-      setShowShareDialog(true)
-      setCopied(false)
+      const baseUrl = window.location.origin;
+      const url = `${baseUrl}/reporting/${selectedBrandSlug}`;
+      setShareableUrl(url);
+      setShowShareDialog(true);
+      setCopied(false);
     } else {
-      setError('Brand slug not available. Please ensure the brand has a slug configured.')
+      setError(
+        "Brand slug not available. Please ensure the brand has a slug configured."
+      );
     }
-  }
+  };
 
   const handleCopyUrl = async () => {
     try {
-      await navigator.clipboard.writeText(shareableUrl)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      await navigator.clipboard.writeText(shareableUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy URL:', err)
-      setError('Failed to copy URL to clipboard')
+      console.error("Failed to copy URL:", err);
+      setError("Failed to copy URL to clipboard");
     }
-  }
+  };
 
   const loadDashboardData = async () => {
-    if (!selectedBrandId && !publicSlug) return
-    
+    if (!selectedBrandId && !publicSlug) return;
+
     try {
-      setLoading(true)
-      setError(null)
-      
-      let data
+      setLoading(true);
+      setError(null);
+
+      let data;
       if (isPublic && publicSlug) {
         data = await reportingAPI.getReportingDashboardBySlug(
           publicSlug,
           startDate || undefined,
           endDate || undefined
-        )
+        );
       } else {
         data = await reportingAPI.getReportingDashboard(
           selectedBrandId,
           startDate || undefined,
           endDate || undefined
-        )
+        );
       }
-      
+
       // Check if data is valid and has content
       if (data && (data.kpis || data.chart_data || data.diagnostics)) {
         console.log(`Dashboard data loaded for brand ${selectedBrandId}:`, {
           hasKPIs: !!data.kpis,
           kpiCount: data.kpis ? Object.keys(data.kpis).length : 0,
           hasChartData: !!data.chart_data,
-          hasDiagnostics: !!data.diagnostics
-        })
-        setDashboardData(data)
-        
+          hasDiagnostics: !!data.diagnostics,
+        });
+        setDashboardData(data);
+
         // Initialize selected KPIs with all available KPIs
         if (selectedKPIs.size === 0 && data.kpis) {
-          setSelectedKPIs(new Set(Object.keys(data.kpis)))
+          setSelectedKPIs(new Set(Object.keys(data.kpis)));
         }
       } else {
         // No data available for this brand
-        console.warn(`No data available for brand ${selectedBrandId}`)
-        setDashboardData(null)
-        setError('No data available for this brand. Please ensure the brand has data sources configured (GA4, Agency Analytics, or Scrunch).')
+        console.warn(`No data available for brand ${selectedBrandId}`);
+        setDashboardData(null);
       }
     } catch (err) {
-      console.error('Error loading dashboard data:', err)
-      setDashboardData(null)
-      const errorMessage = err.response?.data?.detail || err.message || 'Failed to load dashboard data'
-      setError(errorMessage)
+      console.error("Error loading dashboard data:", err);
+      setDashboardData(null);
+      // Don't set error here - let individual sections handle their own errors
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
+
+  const loadScrunchData = async () => {
+    if (!selectedBrandId || isPublic) return; // Skip for public mode (use main endpoint)
+
+    try {
+      setLoadingScrunch(true);
+      const data = await reportingAPI.getScrunchDashboard(
+        selectedBrandId,
+        startDate || undefined,
+        endDate || undefined
+      );
+
+      // Set scrunchData if we have KPIs or chart data, regardless of 'available' flag
+      if (data && (data.kpis || data.chart_data)) {
+        const hasKPIs = data.kpis && Object.keys(data.kpis).length > 0;
+        const hasChartData =
+          data.chart_data &&
+          ((data.chart_data.top_performing_prompts &&
+            data.chart_data.top_performing_prompts.length > 0) ||
+            (data.chart_data.scrunch_ai_insights &&
+              data.chart_data.scrunch_ai_insights.length > 0));
+
+        console.log(`Scrunch data loaded for brand ${selectedBrandId}:`, {
+          hasKPIs,
+          kpiCount: data.kpis ? Object.keys(data.kpis).length : 0,
+          hasChartData,
+        });
+
+        if (hasKPIs || hasChartData) {
+          setScrunchData(data);
+        } else {
+          setScrunchData(null);
+        }
+      } else {
+        setScrunchData(null);
+      }
+    } catch (err) {
+      console.error("Error loading Scrunch data:", err);
+      setScrunchData(null);
+      // Don't set error - Scrunch section will handle its own display
+    } finally {
+      setLoadingScrunch(false);
+    }
+  };
 
   const loadBrandAnalytics = async () => {
-    if (!selectedBrandId) return
-    
+    if (!selectedBrandId) return;
+
     try {
-      setLoadingAnalytics(true)
-      const response = await syncAPI.getBrandAnalytics(selectedBrandId)
-      setBrandAnalytics(response.global_analytics || null)
+      setLoadingAnalytics(true);
+      const response = await syncAPI.getBrandAnalytics(selectedBrandId);
+      setBrandAnalytics(response.global_analytics || null);
     } catch (err) {
-      console.error('Failed to load brand analytics:', err)
-      setBrandAnalytics(null)
+      console.error("Failed to load brand analytics:", err);
+      setBrandAnalytics(null);
     } finally {
-      setLoadingAnalytics(false)
+      setLoadingAnalytics(false);
     }
-  }
+  };
 
   const formatValue = (kpi) => {
-    const { value, format, display } = kpi
-    
+    const { value, format, display } = kpi;
+
     // If custom format with display text, use that
-    if (format === 'custom' && display) {
-      return display
+    if (format === "custom" && display) {
+      return display;
     }
-    
+
     // Handle custom format with object values
-    if (format === 'custom' && typeof value === 'object' && value !== null) {
+    if (format === "custom" && typeof value === "object" && value !== null) {
       // For competitive_benchmarking
-      if (value.brand_visibility_percent !== undefined && value.competitor_avg_visibility_percent !== undefined) {
-        return `Your brand's AI visibility: ${value.brand_visibility_percent.toFixed(1)}% vs competitor average: ${value.competitor_avg_visibility_percent.toFixed(1)}%`
+      if (
+        value.brand_visibility_percent !== undefined &&
+        value.competitor_avg_visibility_percent !== undefined
+      ) {
+        return `Your brand's AI visibility: ${value.brand_visibility_percent.toFixed(
+          1
+        )}% vs competitor average: ${value.competitor_avg_visibility_percent.toFixed(
+          1
+        )}%`;
       }
       // For keyword_ranking_change_and_volume
-      if (value.avg_ranking_change !== undefined && value.total_search_volume !== undefined) {
-        return `Ranking change: ${value.avg_ranking_change} positions | Search volume: ${value.total_search_volume.toLocaleString()}`
+      if (
+        value.avg_ranking_change !== undefined &&
+        value.total_search_volume !== undefined
+      ) {
+        return `Ranking change: ${
+          value.avg_ranking_change
+        } positions | Search volume: ${value.total_search_volume.toLocaleString()}`;
       }
       // For all_keywords_ranking (array of keywords)
       if (Array.isArray(value)) {
-        return `${value.length} keywords tracked`
+        return `${value.length} keywords tracked`;
       }
       // For null values (prompt_volume, citations_per_prompt)
       if (value === null) {
-        return 'Metric not available - no assumptions made'
+        return "Metric not available - no assumptions made";
       }
     }
-    
+
     // Handle null values
     if (value === null || value === undefined) {
-      return 'Metric not available - no assumptions made'
+      return "Metric not available - no assumptions made";
     }
-    
-    if (format === 'currency') {
-      return `$${value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+
+    if (format === "currency") {
+      return `$${value.toLocaleString(undefined, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      })}`;
     }
-    
-    if (format === 'percentage') {
-      return `${value.toFixed(1)}%`
+
+    if (format === "percentage") {
+      return `${value.toFixed(1)}%`;
     }
-    
-    if (format === 'duration') {
+
+    if (format === "duration") {
       // Convert seconds to readable format (MM:SS or HH:MM:SS)
-      const hours = Math.floor(value / 3600)
-      const minutes = Math.floor((value % 3600) / 60)
-      const seconds = Math.floor(value % 60)
-      
+      const hours = Math.floor(value / 3600);
+      const minutes = Math.floor((value % 3600) / 60);
+      const seconds = Math.floor(value % 60);
+
       if (hours > 0) {
-        return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+        return `${hours}:${minutes.toString().padStart(2, "0")}:${seconds
+          .toString()
+          .padStart(2, "0")}`;
       } else {
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`
+        return `${minutes}:${seconds.toString().padStart(2, "0")}`;
       }
     }
-    
-    if (format === 'number') {
-      return value.toLocaleString()
+
+    if (format === "number") {
+      return value.toLocaleString();
     }
-    
-    return value.toLocaleString()
-  }
+
+    return value.toLocaleString();
+  };
 
   // Helper function to get simplified channel label
   const getChannelLabel = (source) => {
-    if (!source) return source
-    const sourceLower = source.toLowerCase()
-    
-    if (sourceLower.includes('direct') || sourceLower.includes('(none)')) {
-      return 'Direct'
-    } else if (sourceLower.includes('organic')) {
-      return 'Organic'
-    } else if (sourceLower.includes('social') || sourceLower.includes('paid_social') || sourceLower.includes('facebook')) {
-      return 'Social'
-    } else if (sourceLower.includes('referral') || sourceLower.includes('refer') || sourceLower.includes('cpc')) {
-      return 'Referral'
+    if (!source) return source;
+    const sourceLower = source.toLowerCase();
+
+    if (sourceLower.includes("direct") || sourceLower.includes("(none)")) {
+      return "Direct";
+    } else if (sourceLower.includes("organic")) {
+      return "Organic";
+    } else if (
+      sourceLower.includes("social") ||
+      sourceLower.includes("paid_social") ||
+      sourceLower.includes("facebook")
+    ) {
+      return "Social";
+    } else if (
+      sourceLower.includes("referral") ||
+      sourceLower.includes("refer") ||
+      sourceLower.includes("cpc")
+    ) {
+      return "Referral";
     }
     // Return original if no match
-    return source
-  }
+    return source;
+  };
 
   // Helper function to get channel color
   const getChannelColor = (source) => {
-    if (!source) return 'rgba(59, 130, 246, 0.6)'
-    const sourceLower = source.toLowerCase()
-    
-    if (sourceLower.includes('direct') || sourceLower.includes('(none)')) {
-      return 'rgba(20, 184, 166, 0.6)' // Teal/Green for Direct
-    } else if (sourceLower.includes('google') && sourceLower.includes('organic')) {
-      return 'rgba(59, 130, 246, 0.6)' // Light blue for Google Organic
-    } else if (sourceLower.includes('google') && (sourceLower.includes('cpc') || sourceLower.includes('paid'))) {
-      return 'rgba(68, 192, 237, 0.6)' // Light blue for Google CPC
-    } else if (sourceLower.includes('facebook') || sourceLower.includes('social') || sourceLower.includes('paid_social')) {
-      return 'rgba(239, 68, 68, 0.6)' // Orange-red for Social/Paid Social
-    } else if (sourceLower.includes('referral') || sourceLower.includes('refer')) {
-      return 'rgba(251, 146, 60, 0.6)' // Orange for Referral
-    } else if (sourceLower.includes('organic') || sourceLower.includes('search')) {
-      return 'rgba(59, 130, 246, 0.6)' // Light blue for Organic Search
+    if (!source) return "rgba(59, 130, 246, 0.6)";
+    const sourceLower = source.toLowerCase();
+
+    if (sourceLower.includes("direct") || sourceLower.includes("(none)")) {
+      return "rgba(20, 184, 166, 0.6)"; // Teal/Green for Direct
+    } else if (
+      sourceLower.includes("google") &&
+      sourceLower.includes("organic")
+    ) {
+      return "rgba(59, 130, 246, 0.6)"; // Light blue for Google Organic
+    } else if (
+      sourceLower.includes("google") &&
+      (sourceLower.includes("cpc") || sourceLower.includes("paid"))
+    ) {
+      return "rgba(68, 192, 237, 0.6)"; // Light blue for Google CPC
+    } else if (
+      sourceLower.includes("facebook") ||
+      sourceLower.includes("social") ||
+      sourceLower.includes("paid_social")
+    ) {
+      return "rgba(239, 68, 68, 0.6)"; // Orange-red for Social/Paid Social
+    } else if (
+      sourceLower.includes("referral") ||
+      sourceLower.includes("refer")
+    ) {
+      return "rgba(251, 146, 60, 0.6)"; // Orange for Referral
+    } else if (
+      sourceLower.includes("organic") ||
+      sourceLower.includes("search")
+    ) {
+      return "rgba(59, 130, 246, 0.6)"; // Light blue for Organic Search
     }
     // Default color
-    return 'rgba(59, 130, 246, 0.6)'
-  }
+    return "rgba(59, 130, 246, 0.6)";
+  };
 
   const getSourceColor = (source) => {
     switch (source) {
-      case 'GA4':
-        return '#4285F4' // Google blue
-      case 'AgencyAnalytics':
-        return '#34A853' // Google green
-      case 'Scrunch':
-        return '#FBBC04' // Google yellow
+      case "GA4":
+        return "#4285F4"; // Google blue
+      case "AgencyAnalytics":
+        return "#34A853"; // Google green
+      case "Scrunch":
+        return "#FBBC04"; // Google yellow
       default:
-        return theme.palette.grey[500]
+        return theme.palette.grey[500];
     }
-  }
+  };
 
   const getSourceLabel = (source) => {
     switch (source) {
-      case 'GA4':
-        return 'GA4'
-      case 'AgencyAnalytics':
-        return 'AgencyAnalytics'
-      case 'Scrunch':
-        return 'Scrunch'
+      case "GA4":
+        return "GA4";
+      case "AgencyAnalytics":
+        return "AgencyAnalytics";
+      case "Scrunch":
+        return "Scrunch";
       default:
-        return source
+        return source;
     }
-  }
+  };
 
   const handleDatePresetChange = (preset) => {
-    if (preset === '') {
-      setDatePreset('')
-      return
+    if (preset === "") {
+      setDatePreset("");
+      return;
     }
-    
-    const presetData = DATE_PRESETS.find(p => p.label === preset)
+
+    const presetData = DATE_PRESETS.find((p) => p.label === preset);
     if (presetData) {
-      const end = new Date()
-      const start = new Date()
-      start.setDate(start.getDate() - presetData.days)
-      
-      setStartDate(start.toISOString().split('T')[0])
-      setEndDate(end.toISOString().split('T')[0])
-      setDatePreset(preset)
+      const end = new Date();
+      const start = new Date();
+      start.setDate(start.getDate() - presetData.days);
+
+      setStartDate(start.toISOString().split("T")[0]);
+      setEndDate(end.toISOString().split("T")[0]);
+      setDatePreset(preset);
     }
-  }
+  };
 
   // Get current date range label for charts
   const getDateRangeLabel = () => {
     if (datePreset) {
-      return datePreset
+      return datePreset;
     }
     // Calculate days from startDate to endDate
     if (startDate && endDate) {
-      const start = new Date(startDate)
-      const end = new Date(endDate)
-      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1
-      return `Last ${days} days`
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+      return `Last ${days} days`;
     }
-    return 'Last 7 days' // Default fallback
-  }
+    return "Last 7 days"; // Default fallback
+  };
 
   const handleKPIChange = (kpiKey, checked) => {
-    const newSelected = new Set(tempSelectedKPIs)
+    const newSelected = new Set(tempSelectedKPIs);
     if (checked) {
-      newSelected.add(kpiKey)
+      newSelected.add(kpiKey);
     } else {
-      newSelected.delete(kpiKey)
+      newSelected.delete(kpiKey);
     }
-    setTempSelectedKPIs(newSelected)
-  }
+    setTempSelectedKPIs(newSelected);
+  };
 
   const handleSelectAll = () => {
     // Select all available KPIs
-    const availableKPIs = dashboardData?.kpis 
+    const availableKPIs = dashboardData?.kpis
       ? Object.keys(dashboardData.kpis)
-      : KPI_ORDER
-    setTempSelectedKPIs(new Set(availableKPIs))
-  }
+      : KPI_ORDER;
+    setTempSelectedKPIs(new Set(availableKPIs));
+  };
 
   const handleDeselectAll = () => {
-    setTempSelectedKPIs(new Set())
-  }
+    setTempSelectedKPIs(new Set());
+  };
 
   const handleSaveKPISelection = () => {
-    setSelectedKPIs(new Set(tempSelectedKPIs))
+    setSelectedKPIs(new Set(tempSelectedKPIs));
     // Save to localStorage
-    localStorage.setItem('reportingDashboardSelectedKPIs', JSON.stringify(Array.from(tempSelectedKPIs)))
-    setShowKPISelector(false)
-  }
+    localStorage.setItem(
+      "reportingDashboardSelectedKPIs",
+      JSON.stringify(Array.from(tempSelectedKPIs))
+    );
+    setShowKPISelector(false);
+  };
 
   const handleOpenKPISelector = () => {
     // Initialize temp selection with current selection
-    setTempSelectedKPIs(new Set(selectedKPIs))
-    setShowKPISelector(true)
-  }
+    setTempSelectedKPIs(new Set(selectedKPIs));
+    setShowKPISelector(true);
+  };
 
   // Get KPIs in the correct order, filtered by selection
+  // Merge scrunchData KPIs with dashboardData KPIs for display
   // In public mode, show all KPIs; otherwise filter by selection
-  const displayedKPIs = dashboardData?.kpis 
-    ? (isPublic 
-        ? KPI_ORDER.filter(key => dashboardData.kpis[key] && key !== 'competitive_benchmarking')
-            .map(key => [key, dashboardData.kpis[key]])
-        : KPI_ORDER.filter(key => dashboardData.kpis[key] && selectedKPIs.has(key) && key !== 'competitive_benchmarking')
-            .map(key => [key, dashboardData.kpis[key]]))
-    : []
+  const allKPIs = {
+    ...(dashboardData?.kpis || {}),
+    ...(scrunchData?.kpis || {}), // scrunchData KPIs take precedence
+  };
+
+  const displayedKPIs =
+    Object.keys(allKPIs).length > 0
+      ? isPublic
+        ? KPI_ORDER.filter(
+            (key) => allKPIs[key] && key !== "competitive_benchmarking"
+          ).map((key) => [key, allKPIs[key]])
+        : KPI_ORDER.filter(
+            (key) =>
+              allKPIs[key] &&
+              selectedKPIs.has(key) &&
+              key !== "competitive_benchmarking"
+          ).map((key) => [key, allKPIs[key]])
+      : [];
 
   return (
     <Box sx={{ p: 3 }}>
       {/* Header */}
       <Box mb={4}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography 
-            variant="h4" 
-            fontWeight={700} 
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
+          mb={2}
+        >
+          <Typography
+            variant="h4"
+            fontWeight={700}
             sx={{
-              fontSize: '1.75rem',
-              letterSpacing: '-0.02em',
-              color: 'text.primary'
+              fontSize: "1.75rem",
+              letterSpacing: "-0.02em",
+              color: "text.primary",
             }}
           >
-            {isPublic && publicBrandInfo ? publicBrandInfo.name : 'Unified Reporting Dashboard'}
+            {isPublic && publicBrandInfo
+              ? publicBrandInfo.name
+              : "Unified Reporting Dashboard"}
           </Typography>
           <Box display="flex" gap={1.5}>
             <IconButton
@@ -556,10 +780,10 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
               sx={{
                 border: `1px solid ${theme.palette.divider}`,
                 borderRadius: 2,
-                bgcolor: 'background.paper',
-                '&:hover': {
+                bgcolor: "background.paper",
+                "&:hover": {
                   bgcolor: alpha(theme.palette.primary.main, 0.05),
-                }
+                },
               }}
               title="Configure KPIs"
             >
@@ -577,9 +801,13 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                   px: 2,
                   py: 0.75,
                   fontWeight: 600,
-                  bgcolor: 'background.paper',
+                  bgcolor: "background.paper",
                 }}
-                title={selectedBrandSlug ? 'Share public dashboard URL' : 'Brand slug not configured'}
+                title={
+                  selectedBrandSlug
+                    ? "Share public dashboard URL"
+                    : "Brand slug not configured"
+                }
               >
                 Share
               </Button>
@@ -594,7 +822,7 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                 px: 2,
                 py: 0.75,
                 fontWeight: 600,
-                bgcolor: 'background.paper',
+                bgcolor: "background.paper",
               }}
             >
               Refresh
@@ -603,34 +831,34 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
         </Box>
 
         {/* Filters */}
-        <Paper 
-          elevation={0} 
-          sx={{ 
-            p: 2.5, 
-            display: 'flex', 
-            gap: 2, 
-            flexWrap: 'wrap', 
-            alignItems: 'center',
+        <Paper
+          elevation={0}
+          sx={{
+            p: 2.5,
+            display: "flex",
+            gap: 2,
+            flexWrap: "wrap",
+            alignItems: "center",
             border: `1px solid ${theme.palette.divider}`,
             borderRadius: 2,
-            bgcolor: 'background.paper'
+            bgcolor: "background.paper",
           }}
         >
           {!isPublic && (
             <FormControl size="small" sx={{ minWidth: 200 }}>
               <InputLabel>Select Brand</InputLabel>
               <Select
-                value={selectedBrandId || ''}
+                value={selectedBrandId || ""}
                 label="Select Brand"
                 onChange={(e) => {
-                  const brandId = e.target.value
-                  setSelectedBrandId(brandId)
+                  const brandId = e.target.value;
+                  setSelectedBrandId(brandId);
                   // Update slug when brand changes
-                  const selectedBrand = brands.find(b => b.id === brandId)
+                  const selectedBrand = brands.find((b) => b.id === brandId);
                   if (selectedBrand?.slug) {
-                    setSelectedBrandSlug(selectedBrand.slug)
+                    setSelectedBrandSlug(selectedBrand.slug);
                   } else {
-                    setSelectedBrandSlug(null)
+                    setSelectedBrandSlug(null);
                   }
                 }}
               >
@@ -644,7 +872,7 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
           )}
 
           <Box display="flex" alignItems="center" gap={1}>
-            <CalendarTodayIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+            <CalendarTodayIcon sx={{ fontSize: 18, color: "text.secondary" }} />
             <FormControl size="small" sx={{ minWidth: 160 }}>
               <InputLabel>Date Range</InputLabel>
               <Select
@@ -661,28 +889,28 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
               </Select>
             </FormControl>
           </Box>
-          
+
           <TextField
             label="Start Date"
             type="date"
             size="small"
-            value={startDate || ''}
+            value={startDate || ""}
             onChange={(e) => {
-              setStartDate(e.target.value)
-              setDatePreset('') // Clear preset when manually selecting dates
+              setStartDate(e.target.value);
+              setDatePreset(""); // Clear preset when manually selecting dates
             }}
             InputLabelProps={{ shrink: true }}
             sx={{ minWidth: 150 }}
           />
-          
+
           <TextField
             label="End Date"
             type="date"
             size="small"
-            value={endDate || ''}
+            value={endDate || ""}
             onChange={(e) => {
-              setEndDate(e.target.value)
-              setDatePreset('') // Clear preset when manually selecting dates
+              setEndDate(e.target.value);
+              setDatePreset(""); // Clear preset when manually selecting dates
             }}
             InputLabelProps={{ shrink: true }}
             sx={{ minWidth: 150 }}
@@ -691,8 +919,8 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
       </Box>
 
       {error && (
-        <Alert 
-          severity="error" 
+        <Alert
+          severity="error"
           sx={{ mb: 3, borderRadius: 2 }}
           onClose={() => setError(null)}
         >
@@ -703,11 +931,9 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
       {/* Diagnostic Information */}
       {dashboardData?.diagnostics && (
         <Box mb={3}>
-          {(!dashboardData.diagnostics.ga4_configured || !dashboardData.diagnostics.agency_analytics_configured) && (
-            <Alert 
-              severity="info" 
-              sx={{ mb: 2, borderRadius: 2 }}
-            >
+          {(!dashboardData.diagnostics.ga4_configured ||
+            !dashboardData.diagnostics.agency_analytics_configured) && (
+            <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
               <Typography variant="subtitle2" fontWeight={600} mb={1}>
                 Missing Data Sources
               </Typography>
@@ -715,20 +941,33 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                 {!dashboardData.diagnostics.ga4_configured && (
                   <li>
                     <Typography variant="body2">
-                      <strong>GA4:</strong> No GA4 property ID configured. Configure it in the brands table or use the GA4 sync endpoint.
+                      <strong>GA4:</strong> No GA4 property ID configured.
+                      Configure it in the brands table or use the GA4 sync
+                      endpoint.
                     </Typography>
                   </li>
                 )}
                 {!dashboardData.diagnostics.agency_analytics_configured && (
                   <li>
                     <Typography variant="body2">
-                      <strong>AgencyAnalytics:</strong> No campaigns linked to this brand. Sync Agency Analytics data and link campaigns to brands.
+                      <strong>AgencyAnalytics:</strong> No campaigns linked to
+                      this brand. Sync Agency Analytics data and link campaigns
+                      to brands.
                     </Typography>
                   </li>
                 )}
               </Box>
-              <Typography variant="caption" color="text.secondary" mt={1} display="block">
-                Currently showing: {dashboardData.diagnostics.kpi_counts.ga4} GA4 KPIs, {dashboardData.diagnostics.kpi_counts.agency_analytics} AgencyAnalytics KPIs, {dashboardData.diagnostics.kpi_counts.scrunch} Scrunch KPIs
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                mt={1}
+                display="block"
+              >
+                Currently showing: {dashboardData.diagnostics.kpi_counts.ga4}{" "}
+                GA4 KPIs,{" "}
+                {dashboardData.diagnostics.kpi_counts.agency_analytics}{" "}
+                AgencyAnalytics KPIs,{" "}
+                {dashboardData.diagnostics.kpi_counts.scrunch} Scrunch KPIs
               </Typography>
             </Alert>
           )}
@@ -736,33 +975,39 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
       )}
 
       {loading ? (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
+        <Box
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          minHeight="50vh"
+        >
           <CircularProgress size={40} thickness={4} />
         </Box>
       ) : dashboardData ? (
         <>
           {/* Google Analytics 4 Section */}
-          {(dashboardData?.kpis?.users || dashboardData?.chart_data?.ga4_traffic_overview) && (
+          {(dashboardData?.kpis?.users ||
+            dashboardData?.chart_data?.ga4_traffic_overview) && (
             <>
-              <Typography 
-                variant="h5" 
-                fontWeight={700} 
-                sx={{ 
-                  mt: 5, 
+              <Typography
+                variant="h5"
+                fontWeight={700}
+                sx={{
+                  mt: 5,
                   mb: 3,
-                  fontSize: '1.5rem',
-                  letterSpacing: '-0.02em',
-                  color: 'text.primary'
+                  fontSize: "1.5rem",
+                  letterSpacing: "-0.02em",
+                  color: "text.primary",
                 }}
               >
                 Google Analytics 4
               </Typography>
-              <Typography 
-                variant="body2" 
+              <Typography
+                variant="body2"
                 color="text.secondary"
-                sx={{ 
+                sx={{
                   mb: 3,
-                  fontSize: '0.875rem'
+                  fontSize: "0.875rem",
                 }}
               >
                 Website traffic and engagement metrics
@@ -780,1365 +1025,1849 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                 </Typography> */}
 
                 {/* Performance Metrics - Donut Charts */}
-                <Typography 
-                  variant="h6" 
-                  fontWeight={600} 
+                <Typography
+                  variant="h6"
+                  fontWeight={600}
                   mb={2}
-                  sx={{ fontSize: '1.125rem', letterSpacing: '-0.01em' }}
+                  sx={{ fontSize: "1.125rem", letterSpacing: "-0.01em" }}
                 >
                   Performance Metrics
                 </Typography>
                 <Grid container spacing={3} sx={{ mb: 4 }}>
                   {/* Bounce Rate Donut */}
                   {dashboardData?.kpis?.bounce_rate && (
-                  <Grid item xs={12} sm={6} md={3}>
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: 0.1 }}
-                    >
-                      <Card
-                        sx={{
-                          background: '#FFFFFF',
-                          border: `1px solid ${theme.palette.divider}`,
-                          borderRadius: 2,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                          transition: 'all 0.2s ease-in-out',
-                          '&:hover': {
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                          },
-                        }}
+                    <Grid item xs={12} sm={6} md={3}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: 0.1 }}
                       >
-                        <CardContent sx={{ p: 2.5 }}>
-                          <Box display="flex" alignItems="center" justifyContent="space-between" mb={1.5}>
-                            <Typography 
-                              variant="body2" 
-                              color="text.secondary"
-                              sx={{ fontSize: '0.875rem', fontWeight: 500 }}
+                        <Card
+                          sx={{
+                            background: "#FFFFFF",
+                            border: `1px solid ${theme.palette.divider}`,
+                            borderRadius: 2,
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                            transition: "all 0.2s ease-in-out",
+                            "&:hover": {
+                              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                            },
+                          }}
+                        >
+                          <CardContent sx={{ p: 2.5 }}>
+                            <Box
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="space-between"
+                              mb={1.5}
                             >
-                              Active users
-                            </Typography>
-                            <IconButton size="small" sx={{ p: 0.5 }}>
-                              <TrendingUpIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                            </IconButton>
-                          </Box>
-                          <Typography 
-                            variant="h4" 
-                            fontWeight={700}
-                            sx={{ 
-                              fontSize: '1.75rem',
-                              letterSpacing: '-0.02em',
-                              mb: 1,
-                              color: 'text.primary'
-                            }}
-                          >
-                            {(() => {
-                              const value = dashboardData.kpis.users.value || 0
-                              if (value >= 1000) {
-                                return `${(value / 1000).toFixed(1)}K`
-                              }
-                              return value.toLocaleString()
-                            })()}
-                          </Typography>
-                          {dashboardData.kpis.users.change !== undefined && dashboardData.kpis.users.change !== null && (
-                            <Box display="flex" alignItems="center" gap={0.5}>
-                              {dashboardData.kpis.users.change >= 0 ? (
-                                <TrendingUpIcon sx={{ fontSize: 14, color: '#34A853' }} />
-                              ) : (
-                                <TrendingDownIcon sx={{ fontSize: 14, color: '#EA4335' }} />
-                              )}
-                              <Typography 
-                                variant="body2" 
-                                sx={{ 
-                                  fontSize: '0.875rem',
-                                  fontWeight: 600,
-                                  color: dashboardData.kpis.users.change >= 0 ? '#34A853' : '#EA4335'
-                                }}
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{ fontSize: "0.875rem", fontWeight: 500 }}
                               >
-                                {Math.abs(dashboardData.kpis.users.change).toFixed(1)}%
+                                Active users
                               </Typography>
+                              <IconButton size="small" sx={{ p: 0.5 }}>
+                                <TrendingUpIcon
+                                  sx={{ fontSize: 16, color: "text.secondary" }}
+                                />
+                              </IconButton>
                             </Box>
-                          )}
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  </Grid>
-                )}
-
-                {/* Sessions */}
-                {dashboardData?.kpis?.sessions && (
-                  <Grid item xs={12} sm={6} md={3}>
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: 0.15 }}
-                    >
-                      <Card
-                        sx={{
-                          background: '#FFFFFF',
-                          border: `1px solid ${theme.palette.divider}`,
-                          borderRadius: 2,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                          transition: 'all 0.2s ease-in-out',
-                          '&:hover': {
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                          },
-                        }}
-                      >
-                        <CardContent sx={{ p: 2.5 }}>
-                          <Box display="flex" alignItems="center" justifyContent="space-between" mb={1.5}>
-                            <Typography 
-                              variant="body2" 
-                              color="text.secondary"
-                              sx={{ fontSize: '0.875rem', fontWeight: 500 }}
+                            <Typography
+                              variant="h4"
+                              fontWeight={700}
+                              sx={{
+                                fontSize: "1.75rem",
+                                letterSpacing: "-0.02em",
+                                mb: 1,
+                                color: "text.primary",
+                              }}
                             >
-                              Sessions
+                              {(() => {
+                                const value =
+                                  dashboardData.kpis.users.value || 0;
+                                if (value >= 1000) {
+                                  return `${(value / 1000).toFixed(1)}K`;
+                                }
+                                return value.toLocaleString();
+                              })()}
                             </Typography>
-                            <IconButton size="small" sx={{ p: 0.5 }}>
-                              <BarChartIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                            </IconButton>
-                          </Box>
-                          <Typography 
-                            variant="h4" 
-                            fontWeight={700}
-                            sx={{ 
-                              fontSize: '1.75rem',
-                              letterSpacing: '-0.02em',
-                              mb: 1,
-                              color: 'text.primary'
-                            }}
-                          >
-                            {(() => {
-                              const value = dashboardData.kpis.sessions.value || 0
-                              if (value >= 1000) {
-                                return `${(value / 1000).toFixed(1)}K`
-                              }
-                              return value.toLocaleString()
-                            })()}
-                          </Typography>
-                          {dashboardData.kpis.sessions.change !== undefined && dashboardData.kpis.sessions.change !== null && (
-                            <Box display="flex" alignItems="center" gap={0.5}>
-                              {dashboardData.kpis.sessions.change >= 0 ? (
-                                <TrendingUpIcon sx={{ fontSize: 14, color: '#34A853' }} />
-                              ) : (
-                                <TrendingDownIcon sx={{ fontSize: 14, color: '#EA4335' }} />
-                              )}
-                              <Typography 
-                                variant="body2" 
-                                sx={{ 
-                                  fontSize: '0.875rem',
-                                  fontWeight: 600,
-                                  color: dashboardData.kpis.sessions.change >= 0 ? '#34A853' : '#EA4335'
-                                }}
-                              >
-                                {Math.abs(dashboardData.kpis.sessions.change).toFixed(1)}%
-                              </Typography>
-                            </Box>
-                          )}
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  </Grid>
-                )}
-
-                {/* New Users */}
-                {dashboardData?.kpis?.new_users && (
-                  <Grid item xs={12} sm={6} md={3}>
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: 0.2 }}
-                    >
-                      <Card
-                        sx={{
-                          background: '#FFFFFF',
-                          border: `1px solid ${theme.palette.divider}`,
-                          borderRadius: 2,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                          transition: 'all 0.2s ease-in-out',
-                          '&:hover': {
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                          },
-                        }}
-                      >
-                        <CardContent sx={{ p: 2.5 }}>
-                          <Box display="flex" alignItems="center" justifyContent="space-between" mb={1.5}>
-                            <Typography 
-                              variant="body2" 
-                              color="text.secondary"
-                              sx={{ fontSize: '0.875rem', fontWeight: 500 }}
-                            >
-                              New users
-                            </Typography>
-                            <IconButton size="small" sx={{ p: 0.5 }}>
-                              <PersonAddIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                            </IconButton>
-                          </Box>
-                          <Typography 
-                            variant="h4" 
-                            fontWeight={700}
-                            sx={{ 
-                              fontSize: '1.75rem',
-                              letterSpacing: '-0.02em',
-                              mb: 1,
-                              color: 'text.primary'
-                            }}
-                          >
-                            {(() => {
-                              const value = dashboardData.kpis.new_users.value || 0
-                              if (value >= 1000) {
-                                return `${(value / 1000).toFixed(1)}K`
-                              }
-                              return value.toLocaleString()
-                            })()}
-                          </Typography>
-                          {dashboardData.kpis.new_users.change !== undefined && dashboardData.kpis.new_users.change !== null && (
-                            <Box display="flex" alignItems="center" gap={0.5}>
-                              {dashboardData.kpis.new_users.change >= 0 ? (
-                                <TrendingUpIcon sx={{ fontSize: 14, color: '#34A853' }} />
-                              ) : (
-                                <TrendingDownIcon sx={{ fontSize: 14, color: '#EA4335' }} />
-                              )}
-                              <Typography 
-                                variant="body2" 
-                                sx={{ 
-                                  fontSize: '0.875rem',
-                                  fontWeight: 600,
-                                  color: dashboardData.kpis.new_users.change >= 0 ? '#34A853' : '#EA4335'
-                                }}
-                              >
-                                {Math.abs(dashboardData.kpis.new_users.change).toFixed(1)}%
-                              </Typography>
-                            </Box>
-                          )}
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  </Grid>
-                )}
-
-                {/* Conversions or Revenue */}
-                {(dashboardData?.kpis?.conversions || dashboardData?.kpis?.revenue) && (
-                  <Grid item xs={12} sm={6} md={3}>
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: 0.25 }}
-                    >
-                      <Card
-                        sx={{
-                          background: '#FFFFFF',
-                          border: `1px solid ${theme.palette.divider}`,
-                          borderRadius: 2,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                          transition: 'all 0.2s ease-in-out',
-                          '&:hover': {
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                          },
-                        }}
-                      >
-                        <CardContent sx={{ p: 2.5 }}>
-                          <Box display="flex" alignItems="center" justifyContent="space-between" mb={1.5}>
-                            <Typography 
-                              variant="body2" 
-                              color="text.secondary"
-                              sx={{ fontSize: '0.875rem', fontWeight: 500 }}
-                            >
-                              {dashboardData.kpis.conversions ? 'Conversions' : 'Revenue'}
-                            </Typography>
-                            <IconButton size="small" sx={{ p: 0.5 }}>
-                              <TrendingUpIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                            </IconButton>
-                          </Box>
-                          <Typography 
-                            variant="h4" 
-                            fontWeight={700}
-                            sx={{ 
-                              fontSize: '1.75rem',
-                              letterSpacing: '-0.02em',
-                              mb: 1,
-                              color: 'text.primary'
-                            }}
-                          >
-                            {(() => {
-                              const kpi = dashboardData.kpis.conversions || dashboardData.kpis.revenue
-                              const value = kpi.value || 0
-                              if (dashboardData.kpis.revenue) {
-                                return `$${value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
-                              }
-                              if (value >= 1000) {
-                                return `${(value / 1000).toFixed(1)}K`
-                              }
-                              return value.toLocaleString()
-                            })()}
-                          </Typography>
-                          {(() => {
-                            const kpi = dashboardData.kpis.conversions || dashboardData.kpis.revenue
-                            return kpi.change !== undefined && kpi.change !== null && (
-                              <Box display="flex" alignItems="center" gap={0.5}>
-                                {kpi.change >= 0 ? (
-                                  <TrendingUpIcon sx={{ fontSize: 14, color: '#34A853' }} />
-                                ) : (
-                                  <TrendingDownIcon sx={{ fontSize: 14, color: '#EA4335' }} />
-                                )}
-                                <Typography 
-                                  variant="body2" 
-                                  sx={{ 
-                                    fontSize: '0.875rem',
-                                    fontWeight: 600,
-                                    color: kpi.change >= 0 ? '#34A853' : '#EA4335'
-                                  }}
+                            {dashboardData.kpis.users.change !== undefined &&
+                              dashboardData.kpis.users.change !== null && (
+                                <Box
+                                  display="flex"
+                                  alignItems="center"
+                                  gap={0.5}
                                 >
-                                  {Math.abs(kpi.change).toFixed(1)}%
+                                  {dashboardData.kpis.users.change >= 0 ? (
+                                    <TrendingUpIcon
+                                      sx={{ fontSize: 14, color: "#34A853" }}
+                                    />
+                                  ) : (
+                                    <TrendingDownIcon
+                                      sx={{ fontSize: 14, color: "#EA4335" }}
+                                    />
+                                  )}
+                                  <Typography
+                                    variant="body2"
+                                    sx={{
+                                      fontSize: "0.875rem",
+                                      fontWeight: 600,
+                                      color:
+                                        dashboardData.kpis.users.change >= 0
+                                          ? "#34A853"
+                                          : "#EA4335",
+                                    }}
+                                  >
+                                    {Math.abs(
+                                      dashboardData.kpis.users.change
+                                    ).toFixed(1)}
+                                    %
+                                  </Typography>
+                                </Box>
+                              )}
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    </Grid>
+                  )}
+
+                  {/* Sessions */}
+                  {dashboardData?.kpis?.sessions && (
+                    <Grid item xs={12} sm={6} md={3}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: 0.15 }}
+                      >
+                        <Card
+                          sx={{
+                            background: "#FFFFFF",
+                            border: `1px solid ${theme.palette.divider}`,
+                            borderRadius: 2,
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                            transition: "all 0.2s ease-in-out",
+                            "&:hover": {
+                              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                            },
+                          }}
+                        >
+                          <CardContent sx={{ p: 2.5 }}>
+                            <Box
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="space-between"
+                              mb={1.5}
+                            >
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{ fontSize: "0.875rem", fontWeight: 500 }}
+                              >
+                                Sessions
+                              </Typography>
+                              <IconButton size="small" sx={{ p: 0.5 }}>
+                                <BarChartIcon
+                                  sx={{ fontSize: 16, color: "text.secondary" }}
+                                />
+                              </IconButton>
+                            </Box>
+                            <Typography
+                              variant="h4"
+                              fontWeight={700}
+                              sx={{
+                                fontSize: "1.75rem",
+                                letterSpacing: "-0.02em",
+                                mb: 1,
+                                color: "text.primary",
+                              }}
+                            >
+                              {(() => {
+                                const value =
+                                  dashboardData.kpis.sessions.value || 0;
+                                if (value >= 1000) {
+                                  return `${(value / 1000).toFixed(1)}K`;
+                                }
+                                return value.toLocaleString();
+                              })()}
+                            </Typography>
+                            {dashboardData.kpis.sessions.change !== undefined &&
+                              dashboardData.kpis.sessions.change !== null && (
+                                <Box
+                                  display="flex"
+                                  alignItems="center"
+                                  gap={0.5}
+                                >
+                                  {dashboardData.kpis.sessions.change >= 0 ? (
+                                    <TrendingUpIcon
+                                      sx={{ fontSize: 14, color: "#34A853" }}
+                                    />
+                                  ) : (
+                                    <TrendingDownIcon
+                                      sx={{ fontSize: 14, color: "#EA4335" }}
+                                    />
+                                  )}
+                                  <Typography
+                                    variant="body2"
+                                    sx={{
+                                      fontSize: "0.875rem",
+                                      fontWeight: 600,
+                                      color:
+                                        dashboardData.kpis.sessions.change >= 0
+                                          ? "#34A853"
+                                          : "#EA4335",
+                                    }}
+                                  >
+                                    {Math.abs(
+                                      dashboardData.kpis.sessions.change
+                                    ).toFixed(1)}
+                                    %
+                                  </Typography>
+                                </Box>
+                              )}
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    </Grid>
+                  )}
+
+                  {/* New Users */}
+                  {dashboardData?.kpis?.new_users && (
+                    <Grid item xs={12} sm={6} md={3}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: 0.2 }}
+                      >
+                        <Card
+                          sx={{
+                            background: "#FFFFFF",
+                            border: `1px solid ${theme.palette.divider}`,
+                            borderRadius: 2,
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                            transition: "all 0.2s ease-in-out",
+                            "&:hover": {
+                              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                            },
+                          }}
+                        >
+                          <CardContent sx={{ p: 2.5 }}>
+                            <Box
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="space-between"
+                              mb={1.5}
+                            >
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{ fontSize: "0.875rem", fontWeight: 500 }}
+                              >
+                                New users
+                              </Typography>
+                              <IconButton size="small" sx={{ p: 0.5 }}>
+                                <PersonAddIcon
+                                  sx={{ fontSize: 16, color: "text.secondary" }}
+                                />
+                              </IconButton>
+                            </Box>
+                            <Typography
+                              variant="h4"
+                              fontWeight={700}
+                              sx={{
+                                fontSize: "1.75rem",
+                                letterSpacing: "-0.02em",
+                                mb: 1,
+                                color: "text.primary",
+                              }}
+                            >
+                              {(() => {
+                                const value =
+                                  dashboardData.kpis.new_users.value || 0;
+                                if (value >= 1000) {
+                                  return `${(value / 1000).toFixed(1)}K`;
+                                }
+                                return value.toLocaleString();
+                              })()}
+                            </Typography>
+                            {dashboardData.kpis.new_users.change !==
+                              undefined &&
+                              dashboardData.kpis.new_users.change !== null && (
+                                <Box
+                                  display="flex"
+                                  alignItems="center"
+                                  gap={0.5}
+                                >
+                                  {dashboardData.kpis.new_users.change >= 0 ? (
+                                    <TrendingUpIcon
+                                      sx={{ fontSize: 14, color: "#34A853" }}
+                                    />
+                                  ) : (
+                                    <TrendingDownIcon
+                                      sx={{ fontSize: 14, color: "#EA4335" }}
+                                    />
+                                  )}
+                                  <Typography
+                                    variant="body2"
+                                    sx={{
+                                      fontSize: "0.875rem",
+                                      fontWeight: 600,
+                                      color:
+                                        dashboardData.kpis.new_users.change >= 0
+                                          ? "#34A853"
+                                          : "#EA4335",
+                                    }}
+                                  >
+                                    {Math.abs(
+                                      dashboardData.kpis.new_users.change
+                                    ).toFixed(1)}
+                                    %
+                                  </Typography>
+                                </Box>
+                              )}
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    </Grid>
+                  )}
+
+                  {/* Conversions or Revenue */}
+                  {(dashboardData?.kpis?.conversions ||
+                    dashboardData?.kpis?.revenue) && (
+                    <Grid item xs={12} sm={6} md={3}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: 0.25 }}
+                      >
+                        <Card
+                          sx={{
+                            background: "#FFFFFF",
+                            border: `1px solid ${theme.palette.divider}`,
+                            borderRadius: 2,
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                            transition: "all 0.2s ease-in-out",
+                            "&:hover": {
+                              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                            },
+                          }}
+                        >
+                          <CardContent sx={{ p: 2.5 }}>
+                            <Box
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="space-between"
+                              mb={1.5}
+                            >
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{ fontSize: "0.875rem", fontWeight: 500 }}
+                              >
+                                {dashboardData.kpis.conversions
+                                  ? "Conversions"
+                                  : "Revenue"}
+                              </Typography>
+                              <IconButton size="small" sx={{ p: 0.5 }}>
+                                <TrendingUpIcon
+                                  sx={{ fontSize: 16, color: "text.secondary" }}
+                                />
+                              </IconButton>
+                            </Box>
+                            <Typography
+                              variant="h4"
+                              fontWeight={700}
+                              sx={{
+                                fontSize: "1.75rem",
+                                letterSpacing: "-0.02em",
+                                mb: 1,
+                                color: "text.primary",
+                              }}
+                            >
+                              {(() => {
+                                const kpi =
+                                  dashboardData.kpis.conversions ||
+                                  dashboardData.kpis.revenue;
+                                const value = kpi.value || 0;
+                                if (dashboardData.kpis.revenue) {
+                                  return `$${value.toLocaleString(undefined, {
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 0,
+                                  })}`;
+                                }
+                                if (value >= 1000) {
+                                  return `${(value / 1000).toFixed(1)}K`;
+                                }
+                                return value.toLocaleString();
+                              })()}
+                            </Typography>
+                            {(() => {
+                              const kpi =
+                                dashboardData.kpis.conversions ||
+                                dashboardData.kpis.revenue;
+                              return (
+                                kpi.change !== undefined &&
+                                kpi.change !== null && (
+                                  <Box
+                                    display="flex"
+                                    alignItems="center"
+                                    gap={0.5}
+                                  >
+                                    {kpi.change >= 0 ? (
+                                      <TrendingUpIcon
+                                        sx={{ fontSize: 14, color: "#34A853" }}
+                                      />
+                                    ) : (
+                                      <TrendingDownIcon
+                                        sx={{ fontSize: 14, color: "#EA4335" }}
+                                      />
+                                    )}
+                                    <Typography
+                                      variant="body2"
+                                      sx={{
+                                        fontSize: "0.875rem",
+                                        fontWeight: 600,
+                                        color:
+                                          kpi.change >= 0
+                                            ? "#34A853"
+                                            : "#EA4335",
+                                      }}
+                                    >
+                                      {Math.abs(kpi.change).toFixed(1)}%
+                                    </Typography>
+                                  </Box>
+                                )
+                              );
+                            })()}
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    </Grid>
+                  )}
+                </Grid>
+
+                {/* GA4 Traffic Overview Cards - Additional Metrics */}
+                {dashboardData?.chart_data?.ga4_traffic_overview && (
+                  <Grid container spacing={2.5} sx={{ mb: 4 }}>
+                    <Grid item xs={12} md={3}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.5 }}
+                      >
+                        <Card
+                          sx={{
+                            background:
+                              "linear-gradient(135deg, rgba(52, 199, 89, 0.04) 0%, rgba(90, 200, 250, 0.04) 100%)",
+                            border: `1px solid ${alpha(
+                              theme.palette.success.main,
+                              0.08
+                            )}`,
+                            borderRadius: 2,
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                          }}
+                        >
+                          <CardContent sx={{ p: 3 }}>
+                            <Box
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="space-between"
+                              mb={2}
+                            >
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.05em",
+                                }}
+                              >
+                                Total Sessions
+                              </Typography>
+                              <BarChartIcon
+                                sx={{
+                                  fontSize: 20,
+                                  color: "success.main",
+                                  opacity: 0.6,
+                                }}
+                              />
+                            </Box>
+                            <Typography
+                              variant="h3"
+                              fontWeight={700}
+                              color="success.main"
+                              sx={{
+                                fontSize: "36px",
+                                letterSpacing: "-0.02em",
+                                mb: 1,
+                              }}
+                            >
+                              {dashboardData.chart_data.ga4_traffic_overview.sessions.toLocaleString()}
+                            </Typography>
+                            <Box display="flex" alignItems="center" gap={0.5}>
+                              {dashboardData.chart_data.ga4_traffic_overview
+                                .sessionsChange >= 0 ? (
+                                <TrendingUpIcon
+                                  sx={{ fontSize: 14, color: "success.main" }}
+                                />
+                              ) : (
+                                <TrendingDownIcon
+                                  sx={{ fontSize: 14, color: "error.main" }}
+                                />
+                              )}
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontSize: "13px",
+                                  fontWeight: 600,
+                                  color:
+                                    dashboardData.chart_data
+                                      .ga4_traffic_overview.sessionsChange >= 0
+                                      ? "success.main"
+                                      : "error.main",
+                                }}
+                              >
+                                {Math.abs(
+                                  dashboardData.chart_data.ga4_traffic_overview
+                                    .sessionsChange
+                                ).toFixed(1)}
+                                %
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ fontSize: "12px" }}
+                              >
+                                vs last period
+                              </Typography>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    </Grid>
+
+                    <Grid item xs={12} md={3}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.6 }}
+                      >
+                        <Card
+                          sx={{
+                            background:
+                              "linear-gradient(135deg, rgba(0, 122, 255, 0.04) 0%, rgba(88, 86, 214, 0.04) 100%)",
+                            border: `1px solid ${alpha(
+                              theme.palette.primary.main,
+                              0.08
+                            )}`,
+                            borderRadius: 2,
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                          }}
+                        >
+                          <CardContent sx={{ p: 3 }}>
+                            <Box
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="space-between"
+                              mb={2}
+                            >
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.05em",
+                                }}
+                              >
+                                Engaged Sessions
+                              </Typography>
+                              <PeopleIcon
+                                sx={{
+                                  fontSize: 20,
+                                  color: "primary.main",
+                                  opacity: 0.6,
+                                }}
+                              />
+                            </Box>
+                            <Typography
+                              variant="h3"
+                              fontWeight={700}
+                              sx={{
+                                fontSize: "36px",
+                                letterSpacing: "-0.02em",
+                                mb: 1,
+                              }}
+                            >
+                              {dashboardData.chart_data.ga4_traffic_overview.engagedSessions.toLocaleString()}
+                            </Typography>
+                            <Box display="flex" alignItems="center" gap={0.5}>
+                              {dashboardData.chart_data.ga4_traffic_overview
+                                .engagedSessionsChange >= 0 ? (
+                                <TrendingUpIcon
+                                  sx={{ fontSize: 14, color: "success.main" }}
+                                />
+                              ) : (
+                                <TrendingDownIcon
+                                  sx={{ fontSize: 14, color: "error.main" }}
+                                />
+                              )}
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontSize: "13px",
+                                  fontWeight: 600,
+                                  color:
+                                    dashboardData.chart_data
+                                      .ga4_traffic_overview
+                                      .engagedSessionsChange >= 0
+                                      ? "success.main"
+                                      : "error.main",
+                                }}
+                              >
+                                {Math.abs(
+                                  dashboardData.chart_data.ga4_traffic_overview
+                                    .engagedSessionsChange
+                                ).toFixed(1)}
+                                %
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ fontSize: "12px" }}
+                              >
+                                vs last period
+                              </Typography>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    </Grid>
+
+                    <Grid item xs={12} md={3}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.7 }}
+                      >
+                        <Card
+                          sx={{
+                            background:
+                              "linear-gradient(135deg, rgba(255, 149, 0, 0.04) 0%, rgba(255, 45, 85, 0.04) 100%)",
+                            border: `1px solid ${alpha(
+                              theme.palette.warning.main,
+                              0.08
+                            )}`,
+                            borderRadius: 2,
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                          }}
+                        >
+                          <CardContent sx={{ p: 3 }}>
+                            <Box
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="space-between"
+                              mb={2}
+                            >
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.05em",
+                                }}
+                              >
+                                Avg. Session Duration
+                              </Typography>
+                              <AccessTimeIcon
+                                sx={{
+                                  fontSize: 20,
+                                  color: "warning.main",
+                                  opacity: 0.6,
+                                }}
+                              />
+                            </Box>
+                            <Typography
+                              variant="h3"
+                              fontWeight={700}
+                              color="warning.main"
+                              sx={{
+                                fontSize: "36px",
+                                letterSpacing: "-0.02em",
+                                mb: 1,
+                              }}
+                            >
+                              {(() => {
+                                const duration =
+                                  dashboardData.chart_data.ga4_traffic_overview
+                                    .averageSessionDuration || 0;
+                                const minutes = Math.floor(duration / 60);
+                                const seconds = Math.floor(duration % 60);
+                                return `${minutes}:${seconds
+                                  .toString()
+                                  .padStart(2, "0")}`;
+                              })()}
+                            </Typography>
+                            <Box display="flex" alignItems="center" gap={0.5}>
+                              {dashboardData.chart_data.ga4_traffic_overview
+                                .avgSessionDurationChange >= 0 ? (
+                                <TrendingUpIcon
+                                  sx={{ fontSize: 14, color: "success.main" }}
+                                />
+                              ) : (
+                                <TrendingDownIcon
+                                  sx={{ fontSize: 14, color: "error.main" }}
+                                />
+                              )}
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontSize: "13px",
+                                  fontWeight: 600,
+                                  color:
+                                    dashboardData.chart_data
+                                      .ga4_traffic_overview
+                                      .avgSessionDurationChange >= 0
+                                      ? "success.main"
+                                      : "error.main",
+                                }}
+                              >
+                                {Math.abs(
+                                  dashboardData.chart_data.ga4_traffic_overview
+                                    .avgSessionDurationChange
+                                ).toFixed(1)}
+                                %
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ fontSize: "12px" }}
+                              >
+                                vs last period
+                              </Typography>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    </Grid>
+
+                    <Grid item xs={12} md={3}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.8 }}
+                      >
+                        <Card
+                          sx={{
+                            background:
+                              "linear-gradient(135deg, rgba(88, 86, 214, 0.04) 0%, rgba(0, 122, 255, 0.04) 100%)",
+                            border: `1px solid ${alpha(
+                              theme.palette.secondary.main,
+                              0.08
+                            )}`,
+                            borderRadius: 2,
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                          }}
+                        >
+                          <CardContent sx={{ p: 3 }}>
+                            <Box
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="space-between"
+                              mb={2}
+                            >
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.05em",
+                                }}
+                              >
+                                Engagement Rate
+                              </Typography>
+                              <VisibilityIcon
+                                sx={{
+                                  fontSize: 20,
+                                  color: "secondary.main",
+                                  opacity: 0.6,
+                                }}
+                              />
+                            </Box>
+                            <Typography
+                              variant="h3"
+                              fontWeight={700}
+                              color="secondary.main"
+                              sx={{
+                                fontSize: "36px",
+                                letterSpacing: "-0.02em",
+                                mb: 1,
+                              }}
+                            >
+                              {(
+                                (dashboardData.chart_data.ga4_traffic_overview
+                                  .engagementRate || 0) * 100
+                              ).toFixed(1)}
+                              %
+                            </Typography>
+                            <Box display="flex" alignItems="center" gap={0.5}>
+                              {dashboardData.chart_data.ga4_traffic_overview
+                                .engagementRateChange >= 0 ? (
+                                <TrendingUpIcon
+                                  sx={{ fontSize: 14, color: "success.main" }}
+                                />
+                              ) : (
+                                <TrendingDownIcon
+                                  sx={{ fontSize: 14, color: "error.main" }}
+                                />
+                              )}
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontSize: "13px",
+                                  fontWeight: 600,
+                                  color:
+                                    dashboardData.chart_data
+                                      .ga4_traffic_overview
+                                      .engagementRateChange >= 0
+                                      ? "success.main"
+                                      : "error.main",
+                                }}
+                              >
+                                {Math.abs(
+                                  dashboardData.chart_data.ga4_traffic_overview
+                                    .engagementRateChange
+                                ).toFixed(1)}
+                                %
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ fontSize: "12px" }}
+                              >
+                                vs last period
+                              </Typography>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    </Grid>
+                  </Grid>
+                )}
+
+                {/* GA4 Performance Charts - Prominent Line Graphs */}
+                {dashboardData.chart_data?.ga4_daily_comparison?.length > 0 && (
+                  <Box sx={{ mt: 4 }}>
+                    <Grid container spacing={3}>
+                      {/* Active Users Chart - Full Width (Primary Chart) */}
+                      <Grid item xs={12}>
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.5, delay: 0.3 }}
+                        >
+                          <Card
+                            sx={{
+                              height: 500,
+                              border: `1px solid ${theme.palette.divider}`,
+                              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                            }}
+                          >
+                            <CardContent sx={{ p: 3 }}>
+                              <Box
+                                display="flex"
+                                alignItems="center"
+                                justifyContent="space-between"
+                                mb={3}
+                              >
+                                <Typography
+                                  variant="h6"
+                                  fontWeight={600}
+                                  sx={{ fontSize: "1.125rem" }}
+                                >
+                                  Active Users
                                 </Typography>
+                                <Chip
+                                  label="GA4"
+                                  size="small"
+                                  sx={{
+                                    bgcolor: alpha(
+                                      theme.palette.primary.main,
+                                      0.1
+                                    ),
+                                    color: theme.palette.primary.main,
+                                    fontWeight: 600,
+                                    fontSize: "10px",
+                                    height: 20,
+                                    borderRadius: "4px",
+                                    border: `1px solid ${alpha(
+                                      theme.palette.primary.main,
+                                      0.2
+                                    )}`,
+                                  }}
+                                />
                               </Box>
-                            )
-                          })()}
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  </Grid>
+                              <ResponsiveContainer width="100%" height={400}>
+                                <LineChart
+                                  data={
+                                    dashboardData.chart_data
+                                      .ga4_daily_comparison
+                                  }
+                                  margin={{
+                                    top: 5,
+                                    right: 30,
+                                    left: 20,
+                                    bottom: 5,
+                                  }}
+                                >
+                                  <CartesianGrid
+                                    strokeDasharray="3 3"
+                                    stroke="#E4E4E7"
+                                  />
+                                  <XAxis
+                                    dataKey="date"
+                                    tick={{ fontSize: 12 }}
+                                    stroke="#71717A"
+                                    tickFormatter={(value) => {
+                                      if (value && value.length === 8) {
+                                        const month = value.substring(4, 6);
+                                        const day = value.substring(6, 8);
+                                        return `${day} ${getMonthName(
+                                          parseInt(month)
+                                        )}`;
+                                      }
+                                      return value;
+                                    }}
+                                  />
+                                  <YAxis
+                                    tick={{ fontSize: 12 }}
+                                    stroke="#71717A"
+                                  />
+                                  <Tooltip
+                                    contentStyle={{
+                                      borderRadius: "8px",
+                                      border: "none",
+                                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                      backgroundColor: "#FFFFFF",
+                                    }}
+                                    labelFormatter={(value) => {
+                                      if (value && value.length === 8) {
+                                        const year = value.substring(0, 4);
+                                        const month = value.substring(4, 6);
+                                        const day = value.substring(6, 8);
+                                        return `${day} ${getMonthName(
+                                          parseInt(month)
+                                        )} ${year}`;
+                                      }
+                                      return value;
+                                    }}
+                                  />
+                                  <Legend
+                                    wrapperStyle={{ paddingTop: "20px" }}
+                                  />
+                                  <Line
+                                    type="monotone"
+                                    dataKey="current_users"
+                                    name={getDateRangeLabel()}
+                                    stroke={theme.palette.primary.main}
+                                    strokeWidth={3}
+                                    dot={{
+                                      fill: theme.palette.primary.main,
+                                      r: 5,
+                                    }}
+                                    activeDot={{ r: 7 }}
+                                  />
+                                  <Line
+                                    type="monotone"
+                                    dataKey="previous_users"
+                                    name="Previous period"
+                                    stroke={theme.palette.grey[400]}
+                                    strokeWidth={2.5}
+                                    strokeDasharray="5 5"
+                                    dot={{
+                                      fill: theme.palette.grey[400],
+                                      r: 4,
+                                    }}
+                                    activeDot={{ r: 6 }}
+                                  />
+                                </LineChart>
+                              </ResponsiveContainer>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      </Grid>
+
+                      {/* Sessions Comparison Chart */}
+                      <Grid item xs={12} md={6}>
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.5, delay: 0.35 }}
+                        >
+                          <Card
+                            sx={{
+                              height: 400,
+                              border: `1px solid ${theme.palette.divider}`,
+                              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                            }}
+                          >
+                            <CardContent sx={{ p: 3 }}>
+                              <Box
+                                display="flex"
+                                alignItems="center"
+                                justifyContent="space-between"
+                                mb={2}
+                              >
+                                <Typography
+                                  variant="h6"
+                                  fontWeight={600}
+                                  sx={{ fontSize: "1rem" }}
+                                >
+                                  Sessions
+                                </Typography>
+                                <Chip
+                                  label="GA4"
+                                  size="small"
+                                  sx={{
+                                    bgcolor: alpha(
+                                      theme.palette.primary.main,
+                                      0.1
+                                    ),
+                                    color: theme.palette.primary.main,
+                                    fontWeight: 600,
+                                    fontSize: "10px",
+                                    height: 20,
+                                    borderRadius: "4px",
+                                    border: `1px solid ${alpha(
+                                      theme.palette.primary.main,
+                                      0.2
+                                    )}`,
+                                  }}
+                                />
+                              </Box>
+                              <ResponsiveContainer width="100%" height={320}>
+                                <LineChart
+                                  data={
+                                    dashboardData.chart_data
+                                      .ga4_daily_comparison
+                                  }
+                                  margin={{
+                                    top: 5,
+                                    right: 30,
+                                    left: 20,
+                                    bottom: 5,
+                                  }}
+                                >
+                                  <CartesianGrid
+                                    strokeDasharray="3 3"
+                                    stroke="#E4E4E7"
+                                  />
+                                  <XAxis
+                                    dataKey="date"
+                                    tick={{ fontSize: 11 }}
+                                    stroke="#71717A"
+                                    tickFormatter={(value) => {
+                                      if (value && value.length === 8) {
+                                        const month = value.substring(4, 6);
+                                        const day = value.substring(6, 8);
+                                        return `${day} ${getMonthName(
+                                          parseInt(month)
+                                        )}`;
+                                      }
+                                      return value;
+                                    }}
+                                  />
+                                  <YAxis
+                                    tick={{ fontSize: 12 }}
+                                    stroke="#71717A"
+                                  />
+                                  <Tooltip
+                                    contentStyle={{
+                                      borderRadius: "8px",
+                                      border: "none",
+                                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                      backgroundColor: "#FFFFFF",
+                                    }}
+                                    labelFormatter={(value) => {
+                                      if (value && value.length === 8) {
+                                        const year = value.substring(0, 4);
+                                        const month = value.substring(4, 6);
+                                        const day = value.substring(6, 8);
+                                        return `${day} ${getMonthName(
+                                          parseInt(month)
+                                        )} ${year}`;
+                                      }
+                                      return value;
+                                    }}
+                                  />
+                                  <Legend
+                                    wrapperStyle={{ paddingTop: "10px" }}
+                                  />
+                                  <Line
+                                    type="monotone"
+                                    dataKey="current_sessions"
+                                    name={getDateRangeLabel()}
+                                    stroke={theme.palette.primary.main}
+                                    strokeWidth={3}
+                                    dot={{
+                                      fill: theme.palette.primary.main,
+                                      r: 4,
+                                    }}
+                                    activeDot={{ r: 6 }}
+                                  />
+                                  <Line
+                                    type="monotone"
+                                    dataKey="previous_sessions"
+                                    name="Previous period"
+                                    stroke={theme.palette.grey[400]}
+                                    strokeWidth={2.5}
+                                    strokeDasharray="5 5"
+                                    dot={{
+                                      fill: theme.palette.grey[400],
+                                      r: 3,
+                                    }}
+                                    activeDot={{ r: 5 }}
+                                  />
+                                </LineChart>
+                              </ResponsiveContainer>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      </Grid>
+
+                      {/* New Users Comparison Chart */}
+                      <Grid item xs={12} md={6}>
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.5, delay: 0.4 }}
+                        >
+                          <Card
+                            sx={{
+                              height: 400,
+                              border: `1px solid ${theme.palette.divider}`,
+                              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                            }}
+                          >
+                            <CardContent sx={{ p: 3 }}>
+                              <Box
+                                display="flex"
+                                alignItems="center"
+                                justifyContent="space-between"
+                                mb={2}
+                              >
+                                <Typography
+                                  variant="h6"
+                                  fontWeight={600}
+                                  sx={{ fontSize: "1rem" }}
+                                >
+                                  New Users
+                                </Typography>
+                                <Chip
+                                  label="GA4"
+                                  size="small"
+                                  sx={{
+                                    bgcolor: alpha(
+                                      theme.palette.primary.main,
+                                      0.1
+                                    ),
+                                    color: theme.palette.primary.main,
+                                    fontWeight: 600,
+                                    fontSize: "10px",
+                                    height: 20,
+                                    borderRadius: "4px",
+                                    border: `1px solid ${alpha(
+                                      theme.palette.primary.main,
+                                      0.2
+                                    )}`,
+                                  }}
+                                />
+                              </Box>
+                              <ResponsiveContainer width="100%" height={320}>
+                                <LineChart
+                                  data={
+                                    dashboardData.chart_data
+                                      .ga4_daily_comparison
+                                  }
+                                  margin={{
+                                    top: 5,
+                                    right: 30,
+                                    left: 20,
+                                    bottom: 5,
+                                  }}
+                                >
+                                  <CartesianGrid
+                                    strokeDasharray="3 3"
+                                    stroke="#E4E4E7"
+                                  />
+                                  <XAxis
+                                    dataKey="date"
+                                    tick={{ fontSize: 11 }}
+                                    stroke="#71717A"
+                                    tickFormatter={(value) => {
+                                      if (value && value.length === 8) {
+                                        const month = value.substring(4, 6);
+                                        const day = value.substring(6, 8);
+                                        return `${day} ${getMonthName(
+                                          parseInt(month)
+                                        )}`;
+                                      }
+                                      return value;
+                                    }}
+                                  />
+                                  <YAxis
+                                    tick={{ fontSize: 12 }}
+                                    stroke="#71717A"
+                                  />
+                                  <Tooltip
+                                    contentStyle={{
+                                      borderRadius: "8px",
+                                      border: "none",
+                                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                      backgroundColor: "#FFFFFF",
+                                    }}
+                                    labelFormatter={(value) => {
+                                      if (value && value.length === 8) {
+                                        const year = value.substring(0, 4);
+                                        const month = value.substring(4, 6);
+                                        const day = value.substring(6, 8);
+                                        return `${day} ${getMonthName(
+                                          parseInt(month)
+                                        )} ${year}`;
+                                      }
+                                      return value;
+                                    }}
+                                  />
+                                  <Legend
+                                    wrapperStyle={{ paddingTop: "10px" }}
+                                  />
+                                  <Line
+                                    type="monotone"
+                                    dataKey="current_new_users"
+                                    name={getDateRangeLabel()}
+                                    stroke={theme.palette.success.main}
+                                    strokeWidth={3}
+                                    dot={{
+                                      fill: theme.palette.success.main,
+                                      r: 4,
+                                    }}
+                                    activeDot={{ r: 6 }}
+                                  />
+                                  <Line
+                                    type="monotone"
+                                    dataKey="previous_new_users"
+                                    name="Previous period"
+                                    stroke={theme.palette.grey[400]}
+                                    strokeWidth={2.5}
+                                    strokeDasharray="5 5"
+                                    dot={{
+                                      fill: theme.palette.grey[400],
+                                      r: 3,
+                                    }}
+                                    activeDot={{ r: 5 }}
+                                  />
+                                </LineChart>
+                              </ResponsiveContainer>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      </Grid>
+
+                      {/* Conversions Comparison Chart */}
+                      {dashboardData.chart_data.ga4_daily_comparison.some(
+                        (d) =>
+                          d.current_conversions > 0 ||
+                          d.previous_conversions > 0
+                      ) && (
+                        <Grid item xs={12} md={6}>
+                          <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.5, delay: 0.45 }}
+                          >
+                            <Card sx={{ height: 400 }}>
+                              <CardContent sx={{ p: 3 }}>
+                                <Box
+                                  display="flex"
+                                  alignItems="center"
+                                  justifyContent="space-between"
+                                  mb={2}
+                                >
+                                  <Typography variant="h6" fontWeight={600}>
+                                    Conversions
+                                  </Typography>
+                                  <Chip
+                                    label="GA4"
+                                    size="small"
+                                    sx={{
+                                      bgcolor: alpha(
+                                        theme.palette.primary.main,
+                                        0.1
+                                      ),
+                                      color: theme.palette.primary.main,
+                                      fontWeight: 600,
+                                      fontSize: "10px",
+                                      height: 20,
+                                      borderRadius: "4px",
+                                      border: `1px solid ${alpha(
+                                        theme.palette.primary.main,
+                                        0.2
+                                      )}`,
+                                    }}
+                                  />
+                                </Box>
+                                <ResponsiveContainer width="100%" height={320}>
+                                  <LineChart
+                                    data={
+                                      dashboardData.chart_data
+                                        .ga4_daily_comparison
+                                    }
+                                    margin={{
+                                      top: 5,
+                                      right: 30,
+                                      left: 20,
+                                      bottom: 5,
+                                    }}
+                                  >
+                                    <CartesianGrid
+                                      strokeDasharray="3 3"
+                                      stroke="#E4E4E7"
+                                    />
+                                    <XAxis
+                                      dataKey="date"
+                                      tick={{ fontSize: 11 }}
+                                      stroke="#71717A"
+                                      tickFormatter={(value) => {
+                                        if (value && value.length === 8) {
+                                          const day = value.substring(6, 8);
+                                          return day;
+                                        }
+                                        return value;
+                                      }}
+                                    />
+                                    <YAxis
+                                      tick={{ fontSize: 12 }}
+                                      stroke="#71717A"
+                                    />
+                                    <Tooltip
+                                      contentStyle={{
+                                        borderRadius: "8px",
+                                        border: "none",
+                                        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                        backgroundColor: "#FFFFFF",
+                                      }}
+                                      labelFormatter={(value) => {
+                                        if (value && value.length === 8) {
+                                          const year = value.substring(0, 4);
+                                          const month = value.substring(4, 6);
+                                          const day = value.substring(6, 8);
+                                          return `${day} ${getMonthName(
+                                            parseInt(month)
+                                          )} ${year}`;
+                                        }
+                                        return value;
+                                      }}
+                                    />
+                                    <Legend />
+                                    <Line
+                                      type="monotone"
+                                      dataKey="current_conversions"
+                                      name={getDateRangeLabel()}
+                                      stroke={theme.palette.warning.main}
+                                      strokeWidth={2.5}
+                                      dot={{
+                                        fill: theme.palette.warning.main,
+                                        r: 3,
+                                      }}
+                                    />
+                                    <Line
+                                      type="monotone"
+                                      dataKey="previous_conversions"
+                                      name="Previous period"
+                                      stroke={theme.palette.grey[400]}
+                                      strokeWidth={2}
+                                      strokeDasharray="5 5"
+                                      dot={{
+                                        fill: theme.palette.grey[400],
+                                        r: 2,
+                                      }}
+                                    />
+                                  </LineChart>
+                                </ResponsiveContainer>
+                              </CardContent>
+                            </Card>
+                          </motion.div>
+                        </Grid>
+                      )}
+
+                      {/* Revenue Comparison Chart */}
+                      {dashboardData.chart_data.ga4_daily_comparison.some(
+                        (d) => d.current_revenue > 0 || d.previous_revenue > 0
+                      ) && (
+                        <Grid item xs={12} md={6}>
+                          <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.5, delay: 0.5 }}
+                          >
+                            <Card sx={{ height: 400 }}>
+                              <CardContent sx={{ p: 3 }}>
+                                <Box
+                                  display="flex"
+                                  alignItems="center"
+                                  justifyContent="space-between"
+                                  mb={2}
+                                >
+                                  <Typography variant="h6" fontWeight={600}>
+                                    Revenue
+                                  </Typography>
+                                  <Chip
+                                    label="GA4"
+                                    size="small"
+                                    sx={{
+                                      bgcolor: alpha(
+                                        theme.palette.primary.main,
+                                        0.1
+                                      ),
+                                      color: theme.palette.primary.main,
+                                      fontWeight: 600,
+                                      fontSize: "10px",
+                                      height: 20,
+                                      borderRadius: "4px",
+                                      border: `1px solid ${alpha(
+                                        theme.palette.primary.main,
+                                        0.2
+                                      )}`,
+                                    }}
+                                  />
+                                </Box>
+                                <ResponsiveContainer width="100%" height={320}>
+                                  <LineChart
+                                    data={
+                                      dashboardData.chart_data
+                                        .ga4_daily_comparison
+                                    }
+                                    margin={{
+                                      top: 5,
+                                      right: 30,
+                                      left: 20,
+                                      bottom: 5,
+                                    }}
+                                  >
+                                    <CartesianGrid
+                                      strokeDasharray="3 3"
+                                      stroke="#E4E4E7"
+                                    />
+                                    <XAxis
+                                      dataKey="date"
+                                      tick={{ fontSize: 11 }}
+                                      stroke="#71717A"
+                                      tickFormatter={(value) => {
+                                        if (value && value.length === 8) {
+                                          const day = value.substring(6, 8);
+                                          return day;
+                                        }
+                                        return value;
+                                      }}
+                                    />
+                                    <YAxis
+                                      tick={{ fontSize: 12 }}
+                                      stroke="#71717A"
+                                      tickFormatter={(value) =>
+                                        `$${(value / 1000).toFixed(0)}k`
+                                      }
+                                    />
+                                    <Tooltip
+                                      contentStyle={{
+                                        borderRadius: "8px",
+                                        border: "none",
+                                        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                        backgroundColor: "#FFFFFF",
+                                      }}
+                                      labelFormatter={(value) => {
+                                        if (value && value.length === 8) {
+                                          const year = value.substring(0, 4);
+                                          const month = value.substring(4, 6);
+                                          const day = value.substring(6, 8);
+                                          return `${day} ${getMonthName(
+                                            parseInt(month)
+                                          )} ${year}`;
+                                        }
+                                        return value;
+                                      }}
+                                      formatter={(value) =>
+                                        `$${value.toLocaleString(undefined, {
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        })}`
+                                      }
+                                    />
+                                    <Legend />
+                                    <Line
+                                      type="monotone"
+                                      dataKey="current_revenue"
+                                      name={getDateRangeLabel()}
+                                      stroke={theme.palette.success.main}
+                                      strokeWidth={2.5}
+                                      dot={{
+                                        fill: theme.palette.success.main,
+                                        r: 3,
+                                      }}
+                                    />
+                                    <Line
+                                      type="monotone"
+                                      dataKey="previous_revenue"
+                                      name="Previous period"
+                                      stroke={theme.palette.grey[400]}
+                                      strokeWidth={2}
+                                      strokeDasharray="5 5"
+                                      dot={{
+                                        fill: theme.palette.grey[400],
+                                        r: 2,
+                                      }}
+                                    />
+                                  </LineChart>
+                                </ResponsiveContainer>
+                              </CardContent>
+                            </Card>
+                          </motion.div>
+                        </Grid>
+                      )}
+                    </Grid>
+                  </Box>
                 )}
-                </Grid>
 
-                  {/* GA4 Traffic Overview Cards - Additional Metrics */}
-                  {dashboardData?.chart_data?.ga4_traffic_overview && (
-                <Grid container spacing={2.5} sx={{ mb: 4 }}>
-                <Grid item xs={12} md={3}>
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.5 }}
-                  >
-                    <Card
-                      sx={{
-                        background: 'linear-gradient(135deg, rgba(52, 199, 89, 0.04) 0%, rgba(90, 200, 250, 0.04) 100%)',
-                        border: `1px solid ${alpha(theme.palette.success.main, 0.08)}`,
-                        borderRadius: 2,
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                      }}
-                    >
-                      <CardContent sx={{ p: 3 }}>
-                        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-                          <Typography 
-                            variant="caption" 
-                            color="text.secondary"
-                            sx={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}
-                          >
-                            Total Sessions
-                          </Typography>
-                          <BarChartIcon sx={{ fontSize: 20, color: 'success.main', opacity: 0.6 }} />
-                        </Box>
-                        <Typography 
-                          variant="h3" 
-                          fontWeight={700}
-                          color="success.main"
-                          sx={{ 
-                            fontSize: '36px',
-                            letterSpacing: '-0.02em',
-                            mb: 1,
-                          }}
-                        >
-                          {dashboardData.chart_data.ga4_traffic_overview.sessions.toLocaleString()}
-                        </Typography>
-                        <Box display="flex" alignItems="center" gap={0.5}>
-                          {dashboardData.chart_data.ga4_traffic_overview.sessionsChange >= 0 ? (
-                            <TrendingUpIcon sx={{ fontSize: 14, color: 'success.main' }} />
-                          ) : (
-                            <TrendingDownIcon sx={{ fontSize: 14, color: 'error.main' }} />
-                          )}
-                          <Typography 
-                            variant="body2" 
-                            sx={{ 
-                              fontSize: '13px',
-                              fontWeight: 600,
-                              color: dashboardData.chart_data.ga4_traffic_overview.sessionsChange >= 0 ? 'success.main' : 'error.main'
-                            }}
-                          >
-                            {Math.abs(dashboardData.chart_data.ga4_traffic_overview.sessionsChange).toFixed(1)}%
-                          </Typography>
-                          <Typography 
-                            variant="caption" 
-                            color="text.secondary"
-                            sx={{ fontSize: '12px' }}
-                          >
-                            vs last period
-                          </Typography>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                </Grid>
-
-                <Grid item xs={12} md={3}>
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.6 }}
-                  >
-                    <Card
-                      sx={{
-                        background: 'linear-gradient(135deg, rgba(0, 122, 255, 0.04) 0%, rgba(88, 86, 214, 0.04) 100%)',
-                        border: `1px solid ${alpha(theme.palette.primary.main, 0.08)}`,
-                        borderRadius: 2,
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                      }}
-                    >
-                      <CardContent sx={{ p: 3 }}>
-                        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-                          <Typography 
-                            variant="caption" 
-                            color="text.secondary"
-                            sx={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}
-                          >
-                            Engaged Sessions
-                          </Typography>
-                          <PeopleIcon sx={{ fontSize: 20, color: 'primary.main', opacity: 0.6 }} />
-                        </Box>
-                        <Typography 
-                          variant="h3" 
-                          fontWeight={700}
-                          sx={{ 
-                            fontSize: '36px',
-                            letterSpacing: '-0.02em',
-                            mb: 1,
-                          }}
-                        >
-                          {dashboardData.chart_data.ga4_traffic_overview.engagedSessions.toLocaleString()}
-                        </Typography>
-                        <Box display="flex" alignItems="center" gap={0.5}>
-                          {dashboardData.chart_data.ga4_traffic_overview.engagedSessionsChange >= 0 ? (
-                            <TrendingUpIcon sx={{ fontSize: 14, color: 'success.main' }} />
-                          ) : (
-                            <TrendingDownIcon sx={{ fontSize: 14, color: 'error.main' }} />
-                          )}
-                          <Typography 
-                            variant="body2" 
-                            sx={{ 
-                              fontSize: '13px',
-                              fontWeight: 600,
-                              color: dashboardData.chart_data.ga4_traffic_overview.engagedSessionsChange >= 0 ? 'success.main' : 'error.main'
-                            }}
-                          >
-                            {Math.abs(dashboardData.chart_data.ga4_traffic_overview.engagedSessionsChange).toFixed(1)}%
-                          </Typography>
-                          <Typography 
-                            variant="caption" 
-                            color="text.secondary"
-                            sx={{ fontSize: '12px' }}
-                          >
-                            vs last period
-                          </Typography>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                </Grid>
-
-                <Grid item xs={12} md={3}>
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.7 }}
-                  >
-                    <Card
-                      sx={{
-                        background: 'linear-gradient(135deg, rgba(255, 149, 0, 0.04) 0%, rgba(255, 45, 85, 0.04) 100%)',
-                        border: `1px solid ${alpha(theme.palette.warning.main, 0.08)}`,
-                        borderRadius: 2,
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                      }}
-                    >
-                      <CardContent sx={{ p: 3 }}>
-                        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-                          <Typography 
-                            variant="caption" 
-                            color="text.secondary"
-                            sx={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}
-                          >
-                            Avg. Session Duration
-                          </Typography>
-                          <AccessTimeIcon sx={{ fontSize: 20, color: 'warning.main', opacity: 0.6 }} />
-                        </Box>
-                        <Typography 
-                          variant="h3" 
-                          fontWeight={700}
-                          color="warning.main"
-                          sx={{ 
-                            fontSize: '36px',
-                            letterSpacing: '-0.02em',
-                            mb: 1,
-                          }}
-                        >
-                          {(() => {
-                            const duration = dashboardData.chart_data.ga4_traffic_overview.averageSessionDuration || 0
-                            const minutes = Math.floor(duration / 60)
-                            const seconds = Math.floor(duration % 60)
-                            return `${minutes}:${seconds.toString().padStart(2, '0')}`
-                          })()}
-                        </Typography>
-                        <Box display="flex" alignItems="center" gap={0.5}>
-                          {dashboardData.chart_data.ga4_traffic_overview.avgSessionDurationChange >= 0 ? (
-                            <TrendingUpIcon sx={{ fontSize: 14, color: 'success.main' }} />
-                          ) : (
-                            <TrendingDownIcon sx={{ fontSize: 14, color: 'error.main' }} />
-                          )}
-                          <Typography 
-                            variant="body2" 
-                            sx={{ 
-                              fontSize: '13px',
-                              fontWeight: 600,
-                              color: dashboardData.chart_data.ga4_traffic_overview.avgSessionDurationChange >= 0 ? 'success.main' : 'error.main'
-                            }}
-                          >
-                            {Math.abs(dashboardData.chart_data.ga4_traffic_overview.avgSessionDurationChange).toFixed(1)}%
-                          </Typography>
-                          <Typography 
-                            variant="caption" 
-                            color="text.secondary"
-                            sx={{ fontSize: '12px' }}
-                          >
-                            vs last period
-                          </Typography>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                </Grid>
-
-                <Grid item xs={12} md={3}>
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.8 }}
-                  >
-                    <Card
-                      sx={{
-                        background: 'linear-gradient(135deg, rgba(88, 86, 214, 0.04) 0%, rgba(0, 122, 255, 0.04) 100%)',
-                        border: `1px solid ${alpha(theme.palette.secondary.main, 0.08)}`,
-                        borderRadius: 2,
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                      }}
-                    >
-                      <CardContent sx={{ p: 3 }}>
-                        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-                          <Typography 
-                            variant="caption" 
-                            color="text.secondary"
-                            sx={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}
-                          >
-                            Engagement Rate
-                          </Typography>
-                          <VisibilityIcon sx={{ fontSize: 20, color: 'secondary.main', opacity: 0.6 }} />
-                        </Box>
-                        <Typography 
-                          variant="h3" 
-                          fontWeight={700}
-                          color="secondary.main"
-                          sx={{ 
-                            fontSize: '36px',
-                            letterSpacing: '-0.02em',
-                            mb: 1,
-                          }}
-                        >
-                          {((dashboardData.chart_data.ga4_traffic_overview.engagementRate || 0) * 100).toFixed(1)}%
-                        </Typography>
-                        <Box display="flex" alignItems="center" gap={0.5}>
-                          {dashboardData.chart_data.ga4_traffic_overview.engagementRateChange >= 0 ? (
-                            <TrendingUpIcon sx={{ fontSize: 14, color: 'success.main' }} />
-                          ) : (
-                            <TrendingDownIcon sx={{ fontSize: 14, color: 'error.main' }} />
-                          )}
-                          <Typography 
-                            variant="body2" 
-                            sx={{ 
-                              fontSize: '13px',
-                              fontWeight: 600,
-                              color: dashboardData.chart_data.ga4_traffic_overview.engagementRateChange >= 0 ? 'success.main' : 'error.main'
-                            }}
-                          >
-                            {Math.abs(dashboardData.chart_data.ga4_traffic_overview.engagementRateChange).toFixed(1)}%
-                          </Typography>
-                          <Typography 
-                            variant="caption" 
-                            color="text.secondary"
-                            sx={{ fontSize: '12px' }}
-                          >
-                            vs last period
-                          </Typography>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                </Grid>
-              </Grid>
-              )}
-
-              {/* GA4 Performance Charts - Prominent Line Graphs */}
-              {dashboardData.chart_data?.ga4_daily_comparison?.length > 0 && (
-                <Box sx={{ mt: 4 }}>
-                  <Grid container spacing={3}>
-                    {/* Active Users Chart - Full Width (Primary Chart) */}
-                    <Grid item xs={12}>
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5, delay: 0.3 }}
-                      >
-                        <Card 
-                          sx={{ 
-                            height: 500,
-                            border: `1px solid ${theme.palette.divider}`,
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                          }}
-                        >
-                          <CardContent sx={{ p: 3 }}>
-                            <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
-                              <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1.125rem' }}>
-                                Active Users
-                              </Typography>
-                              <Chip
-                                label="GA4"
-                                size="small"
-                                sx={{
-                                  bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                  color: theme.palette.primary.main,
-                                  fontWeight: 600,
-                                  fontSize: '10px',
-                                  height: 20,
-                                  borderRadius: '4px',
-                                  border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
-                                }}
-                              />
-                            </Box>
-                            <ResponsiveContainer width="100%" height={400}>
-                              <LineChart 
-                                data={dashboardData.chart_data.ga4_daily_comparison}
-                                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                              >
-                                <CartesianGrid strokeDasharray="3 3" stroke="#E4E4E7" />
-                                <XAxis 
-                                  dataKey="date" 
-                                  tick={{ fontSize: 12 }}
-                                  stroke="#71717A"
-                                  tickFormatter={(value) => {
-                                    if (value && value.length === 8) {
-                                      const month = value.substring(4, 6)
-                                      const day = value.substring(6, 8)
-                                      return `${day} ${getMonthName(parseInt(month))}`
-                                    }
-                                    return value
-                                  }}
-                                />
-                                <YAxis 
-                                  tick={{ fontSize: 12 }}
-                                  stroke="#71717A"
-                                />
-                                <Tooltip 
-                                  contentStyle={{ 
-                                    borderRadius: '8px', 
-                                    border: 'none', 
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                    backgroundColor: '#FFFFFF'
-                                  }}
-                                  labelFormatter={(value) => {
-                                    if (value && value.length === 8) {
-                                      const year = value.substring(0, 4)
-                                      const month = value.substring(4, 6)
-                                      const day = value.substring(6, 8)
-                                      return `${day} ${getMonthName(parseInt(month))} ${year}`
-                                    }
-                                    return value
-                                  }}
-                                />
-                                <Legend 
-                                  wrapperStyle={{ paddingTop: '20px' }}
-                                />
-                                <Line 
-                                  type="monotone" 
-                                  dataKey="current_users" 
-                                  name={getDateRangeLabel()}
-                                  stroke={theme.palette.primary.main} 
-                                  strokeWidth={3}
-                                  dot={{ fill: theme.palette.primary.main, r: 5 }}
-                                  activeDot={{ r: 7 }}
-                                />
-                                <Line 
-                                  type="monotone" 
-                                  dataKey="previous_users" 
-                                  name="Previous period"
-                                  stroke={theme.palette.grey[400]} 
-                                  strokeWidth={2.5}
-                                  strokeDasharray="5 5"
-                                  dot={{ fill: theme.palette.grey[400], r: 4 }}
-                                  activeDot={{ r: 6 }}
-                                />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                    </Grid>
-
-                    {/* Sessions Comparison Chart */}
-                    <Grid item xs={12} md={6}>
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5, delay: 0.35 }}
-                      >
-                        <Card 
-                          sx={{ 
-                            height: 400,
-                            border: `1px solid ${theme.palette.divider}`,
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                          }}
-                        >
-                          <CardContent sx={{ p: 3 }}>
-                            <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-                              <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1rem' }}>Sessions</Typography>
-                              <Chip
-                                label="GA4"
-                                size="small"
-                                sx={{
-                                  bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                  color: theme.palette.primary.main,
-                                  fontWeight: 600,
-                                  fontSize: '10px',
-                                  height: 20,
-                                  borderRadius: '4px',
-                                  border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
-                                }}
-                              />
-                            </Box>
-                            <ResponsiveContainer width="100%" height={320}>
-                              <LineChart 
-                                data={dashboardData.chart_data.ga4_daily_comparison}
-                                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                              >
-                                <CartesianGrid strokeDasharray="3 3" stroke="#E4E4E7" />
-                                <XAxis 
-                                  dataKey="date" 
-                                  tick={{ fontSize: 11 }}
-                                  stroke="#71717A"
-                                  tickFormatter={(value) => {
-                                    if (value && value.length === 8) {
-                                      const month = value.substring(4, 6)
-                                      const day = value.substring(6, 8)
-                                      return `${day} ${getMonthName(parseInt(month))}`
-                                    }
-                                    return value
-                                  }}
-                                />
-                                <YAxis 
-                                  tick={{ fontSize: 12 }}
-                                  stroke="#71717A"
-                                />
-                                <Tooltip 
-                                  contentStyle={{ 
-                                    borderRadius: '8px', 
-                                    border: 'none', 
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                    backgroundColor: '#FFFFFF'
-                                  }}
-                                  labelFormatter={(value) => {
-                                    if (value && value.length === 8) {
-                                      const year = value.substring(0, 4)
-                                      const month = value.substring(4, 6)
-                                      const day = value.substring(6, 8)
-                                      return `${day} ${getMonthName(parseInt(month))} ${year}`
-                                    }
-                                    return value
-                                  }}
-                                />
-                                <Legend wrapperStyle={{ paddingTop: '10px' }} />
-                                <Line 
-                                  type="monotone" 
-                                  dataKey="current_sessions" 
-                                  name={getDateRangeLabel()}
-                                  stroke={theme.palette.primary.main} 
-                                  strokeWidth={3}
-                                  dot={{ fill: theme.palette.primary.main, r: 4 }}
-                                  activeDot={{ r: 6 }}
-                                />
-                                <Line 
-                                  type="monotone" 
-                                  dataKey="previous_sessions" 
-                                  name="Previous period"
-                                  stroke={theme.palette.grey[400]} 
-                                  strokeWidth={2.5}
-                                  strokeDasharray="5 5"
-                                  dot={{ fill: theme.palette.grey[400], r: 3 }}
-                                  activeDot={{ r: 5 }}
-                                />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                    </Grid>
-
-                    {/* New Users Comparison Chart */}
-                    <Grid item xs={12} md={6}>
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5, delay: 0.4 }}
-                      >
-                        <Card 
-                          sx={{ 
-                            height: 400,
-                            border: `1px solid ${theme.palette.divider}`,
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                          }}
-                        >
-                          <CardContent sx={{ p: 3 }}>
-                            <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-                              <Typography variant="h6" fontWeight={600} sx={{ fontSize: '1rem' }}>New Users</Typography>
-                              <Chip
-                                label="GA4"
-                                size="small"
-                                sx={{
-                                  bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                  color: theme.palette.primary.main,
-                                  fontWeight: 600,
-                                  fontSize: '10px',
-                                  height: 20,
-                                  borderRadius: '4px',
-                                  border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
-                                }}
-                              />
-                            </Box>
-                            <ResponsiveContainer width="100%" height={320}>
-                              <LineChart 
-                                data={dashboardData.chart_data.ga4_daily_comparison}
-                                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                              >
-                                <CartesianGrid strokeDasharray="3 3" stroke="#E4E4E7" />
-                                <XAxis 
-                                  dataKey="date" 
-                                  tick={{ fontSize: 11 }}
-                                  stroke="#71717A"
-                                  tickFormatter={(value) => {
-                                    if (value && value.length === 8) {
-                                      const month = value.substring(4, 6)
-                                      const day = value.substring(6, 8)
-                                      return `${day} ${getMonthName(parseInt(month))}`
-                                    }
-                                    return value
-                                  }}
-                                />
-                                <YAxis 
-                                  tick={{ fontSize: 12 }}
-                                  stroke="#71717A"
-                                />
-                                <Tooltip 
-                                  contentStyle={{ 
-                                    borderRadius: '8px', 
-                                    border: 'none', 
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                    backgroundColor: '#FFFFFF'
-                                  }}
-                                  labelFormatter={(value) => {
-                                    if (value && value.length === 8) {
-                                      const year = value.substring(0, 4)
-                                      const month = value.substring(4, 6)
-                                      const day = value.substring(6, 8)
-                                      return `${day} ${getMonthName(parseInt(month))} ${year}`
-                                    }
-                                    return value
-                                  }}
-                                />
-                                <Legend wrapperStyle={{ paddingTop: '10px' }} />
-                                <Line 
-                                  type="monotone" 
-                                  dataKey="current_new_users" 
-                                  name={getDateRangeLabel()}
-                                  stroke={theme.palette.success.main} 
-                                  strokeWidth={3}
-                                  dot={{ fill: theme.palette.success.main, r: 4 }}
-                                  activeDot={{ r: 6 }}
-                                />
-                                <Line 
-                                  type="monotone" 
-                                  dataKey="previous_new_users" 
-                                  name="Previous period"
-                                  stroke={theme.palette.grey[400]} 
-                                  strokeWidth={2.5}
-                                  strokeDasharray="5 5"
-                                  dot={{ fill: theme.palette.grey[400], r: 3 }}
-                                  activeDot={{ r: 5 }}
-                                />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                    </Grid>
-
-                    {/* Conversions Comparison Chart */}
-                    {dashboardData.chart_data.ga4_daily_comparison.some(d => d.current_conversions > 0 || d.previous_conversions > 0) && (
-                      <Grid item xs={12} md={6}>
-                        <motion.div
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.5, delay: 0.45 }}
-                        >
-                          <Card sx={{ height: 400 }}>
-                            <CardContent sx={{ p: 3 }}>
-                              <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-                                <Typography variant="h6" fontWeight={600}>Conversions</Typography>
-                                <Chip
-                                  label="GA4"
-                                  size="small"
-                                  sx={{
-                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                    color: theme.palette.primary.main,
-                                    fontWeight: 600,
-                                    fontSize: '10px',
-                                    height: 20,
-                                    borderRadius: '4px',
-                                    border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
-                                  }}
-                                />
-                              </Box>
-                              <ResponsiveContainer width="100%" height={320}>
-                                <LineChart 
-                                  data={dashboardData.chart_data.ga4_daily_comparison}
-                                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                                >
-                                  <CartesianGrid strokeDasharray="3 3" stroke="#E4E4E7" />
-                                  <XAxis 
-                                    dataKey="date" 
-                                    tick={{ fontSize: 11 }}
-                                    stroke="#71717A"
-                                    tickFormatter={(value) => {
-                                      if (value && value.length === 8) {
-                                        const day = value.substring(6, 8)
-                                        return day
-                                      }
-                                      return value
-                                    }}
-                                  />
-                                  <YAxis 
-                                    tick={{ fontSize: 12 }}
-                                    stroke="#71717A"
-                                  />
-                                  <Tooltip 
-                                    contentStyle={{ 
-                                      borderRadius: '8px', 
-                                      border: 'none', 
-                                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                      backgroundColor: '#FFFFFF'
-                                    }}
-                                    labelFormatter={(value) => {
-                                      if (value && value.length === 8) {
-                                        const year = value.substring(0, 4)
-                                        const month = value.substring(4, 6)
-                                        const day = value.substring(6, 8)
-                                        return `${day} ${getMonthName(parseInt(month))} ${year}`
-                                      }
-                                      return value
-                                    }}
-                                  />
-                                  <Legend />
-                                  <Line 
-                                    type="monotone" 
-                                    dataKey="current_conversions" 
-                                    name={getDateRangeLabel()}
-                                    stroke={theme.palette.warning.main} 
-                                    strokeWidth={2.5}
-                                    dot={{ fill: theme.palette.warning.main, r: 3 }}
-                                  />
-                                  <Line 
-                                    type="monotone" 
-                                    dataKey="previous_conversions" 
-                                    name="Previous period"
-                                    stroke={theme.palette.grey[400]} 
-                                    strokeWidth={2}
-                                    strokeDasharray="5 5"
-                                    dot={{ fill: theme.palette.grey[400], r: 2 }}
-                                  />
-                                </LineChart>
-                              </ResponsiveContainer>
-                            </CardContent>
-                          </Card>
-                        </motion.div>
-                      </Grid>
-                    )}
-
-                    {/* Revenue Comparison Chart */}
-                    {dashboardData.chart_data.ga4_daily_comparison.some(d => d.current_revenue > 0 || d.previous_revenue > 0) && (
-                      <Grid item xs={12} md={6}>
-                        <motion.div
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.5, delay: 0.5 }}
-                        >
-                          <Card sx={{ height: 400 }}>
-                            <CardContent sx={{ p: 3 }}>
-                              <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-                                <Typography variant="h6" fontWeight={600}>Revenue</Typography>
-                                <Chip
-                                  label="GA4"
-                                  size="small"
-                                  sx={{
-                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                    color: theme.palette.primary.main,
-                                    fontWeight: 600,
-                                    fontSize: '10px',
-                                    height: 20,
-                                    borderRadius: '4px',
-                                    border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
-                                  }}
-                                />
-                              </Box>
-                              <ResponsiveContainer width="100%" height={320}>
-                                <LineChart 
-                                  data={dashboardData.chart_data.ga4_daily_comparison}
-                                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                                >
-                                  <CartesianGrid strokeDasharray="3 3" stroke="#E4E4E7" />
-                                  <XAxis 
-                                    dataKey="date" 
-                                    tick={{ fontSize: 11 }}
-                                    stroke="#71717A"
-                                    tickFormatter={(value) => {
-                                      if (value && value.length === 8) {
-                                        const day = value.substring(6, 8)
-                                        return day
-                                      }
-                                      return value
-                                    }}
-                                  />
-                                  <YAxis 
-                                    tick={{ fontSize: 12 }}
-                                    stroke="#71717A"
-                                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-                                  />
-                                  <Tooltip 
-                                    contentStyle={{ 
-                                      borderRadius: '8px', 
-                                      border: 'none', 
-                                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                      backgroundColor: '#FFFFFF'
-                                    }}
-                                    labelFormatter={(value) => {
-                                      if (value && value.length === 8) {
-                                        const year = value.substring(0, 4)
-                                        const month = value.substring(4, 6)
-                                        const day = value.substring(6, 8)
-                                        return `${day} ${getMonthName(parseInt(month))} ${year}`
-                                      }
-                                      return value
-                                    }}
-                                    formatter={(value) => `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                                  />
-                                  <Legend />
-                                  <Line 
-                                    type="monotone" 
-                                    dataKey="current_revenue" 
-                                    name={getDateRangeLabel()}
-                                    stroke={theme.palette.success.main} 
-                                    strokeWidth={2.5}
-                                    dot={{ fill: theme.palette.success.main, r: 3 }}
-                                  />
-                                  <Line 
-                                    type="monotone" 
-                                    dataKey="previous_revenue" 
-                                    name="Previous period"
-                                    stroke={theme.palette.grey[400]} 
-                                    strokeWidth={2}
-                                    strokeDasharray="5 5"
-                                    dot={{ fill: theme.palette.grey[400], r: 2 }}
-                                  />
-                                </LineChart>
-                              </ResponsiveContainer>
-                            </CardContent>
-                          </Card>
-                        </motion.div>
-                      </Grid>
-                    )}
-                  </Grid>
-                </Box>
-              )}
-
-              {/* Top Performing Pages - Horizontal Bar Chart */}
-              {dashboardData.chart_data?.top_pages && dashboardData.chart_data.top_pages.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.9 }}
-                >
-                  <Card sx={{ mb: 3, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                    <CardContent sx={{ p: 3 }}>
-                      <Typography 
-                        variant="h6" 
-                        mb={2} 
-                        fontWeight={600}
-                        sx={{ fontSize: '1.125rem', letterSpacing: '-0.01em' }}
-                      >
-                        Top Performing Pages
-                      </Typography>
-                      <ResponsiveContainer width="100%" height={400}>
-                        <BarChart
-                          data={dashboardData.chart_data.top_pages.slice(0, 10)}
-                          layout="vertical"
-                          margin={{ top: 5, right: 30, left: 150, bottom: 5 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E4E4E7" />
-                          <XAxis type="number" tick={{ fontSize: 12 }} stroke="#71717A" />
-                          <YAxis 
-                            dataKey="pagePath" 
-                            type="category" 
-                            width={140} 
-                            stroke="#71717A"
-                            tick={{ fontSize: 10 }}
-                            tickFormatter={(value) => {
-                              if (!value) return 'N/A'
-                              const path = value.length > 30 ? value.substring(0, 30) + '...' : value
-                              return path
-                            }}
-                          />
-                          <Tooltip 
-                            contentStyle={{ 
-                              borderRadius: '8px', 
-                              border: 'none', 
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                              backgroundColor: '#FFFFFF'
-                            }}
-                            formatter={(value) => [value.toLocaleString(), 'Views']}
-                          />
-                          <Legend />
-                          <Bar 
-                            dataKey="views" 
-                            radius={[0, 4, 4, 0]}
-                            fill={theme.palette.primary.main}
-                            name="Page Views"
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              )}
-
-              {/* Sessions by Channel - Donut Chart & Bar Chart */}
-              {dashboardData.chart_data?.traffic_sources && dashboardData.chart_data.traffic_sources.length > 0 && (
-                <Grid container spacing={3} sx={{ mb: 3 }}>
-                  {/* Donut Chart */}
-                  <Grid item xs={12} md={6}>
+                {/* Top Performing Pages - Horizontal Bar Chart */}
+                {dashboardData.chart_data?.top_pages &&
+                  dashboardData.chart_data.top_pages.length > 0 && (
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, delay: 1.0 }}
+                      transition={{ duration: 0.5, delay: 0.9 }}
                     >
-                      <Card sx={{ height: '100%', borderRadius: 2, border: `1px solid ${theme.palette.divider}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                      <Card
+                        sx={{
+                          mb: 3,
+                          borderRadius: 2,
+                          border: `1px solid ${theme.palette.divider}`,
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                        }}
+                      >
                         <CardContent sx={{ p: 3 }}>
-                          <Typography 
-                            variant="h6" 
-                            mb={2} 
+                          <Typography
+                            variant="h6"
+                            mb={2}
                             fontWeight={600}
-                            sx={{ fontSize: '1.125rem', letterSpacing: '-0.01em' }}
+                            sx={{
+                              fontSize: "1.125rem",
+                              letterSpacing: "-0.01em",
+                            }}
                           >
-                            Traffic Sources Distribution
+                            Top Performing Pages
                           </Typography>
-                          <ResponsiveContainer width="100%" height={300}>
-                            <PieChart>
-                              <Pie
-                                data={dashboardData.chart_data.traffic_sources.slice(0, 6).map((item) => ({
-                                  name: item.source || 'Unknown',
-                                  value: item.sessions || 0,
-                                }))}
-                                cx="50%"
-                                cy="50%"
-                                labelLine={false}
-                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                                outerRadius={100}
-                                innerRadius={60}
-                                fill="#8884d8"
-                                dataKey="value"
-                              >
-                                {dashboardData.chart_data.traffic_sources.slice(0, 6).map((entry, index) => {
-                                  const colors = [
-                                    theme.palette.primary.main,
-                                    theme.palette.secondary.main,
-                                    theme.palette.success.main,
-                                    theme.palette.warning.main,
-                                    theme.palette.error.main,
-                                    theme.palette.info.main
-                                  ]
-                                  return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-                                })}
-                              </Pie>
-                              <Tooltip 
-                                contentStyle={{ 
-                                  borderRadius: '8px', 
-                                  border: 'none', 
-                                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                  backgroundColor: '#FFFFFF'
-                                }}
-                                formatter={(value) => [value.toLocaleString(), 'Sessions']}
-                              />
-                              <Legend 
-                                wrapperStyle={{ paddingTop: '20px' }}
-                                formatter={(value) => value.length > 15 ? value.substring(0, 15) + '...' : value}
-                              />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  </Grid>
-
-                  {/* Horizontal Bar Chart */}
-                  <Grid item xs={12} md={6}>
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, delay: 1.05 }}
-                    >
-                      <Card sx={{ height: '100%', borderRadius: 2, border: `1px solid ${theme.palette.divider}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                        <CardContent sx={{ p: 3 }}>
-                          <Typography 
-                            variant="h6" 
-                            mb={2} 
-                            fontWeight={600}
-                            sx={{ fontSize: '1.125rem', letterSpacing: '-0.01em' }}
-                          >
-                            Sessions by Channel
-                          </Typography>
-                          <ResponsiveContainer width="100%" height={300}>
+                          <ResponsiveContainer width="100%" height={400}>
                             <BarChart
-                              data={dashboardData.chart_data.traffic_sources.slice(0, 8)}
+                              data={dashboardData.chart_data.top_pages.slice(
+                                0,
+                                10
+                              )}
                               layout="vertical"
-                              margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+                              margin={{
+                                top: 5,
+                                right: 30,
+                                left: 150,
+                                bottom: 5,
+                              }}
                             >
-                              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E4E4E7" />
-                              <XAxis type="number" tick={{ fontSize: 12 }} stroke="#71717A" />
-                              <YAxis 
-                                dataKey="source" 
-                                type="category" 
-                                width={75} 
-                                stroke="#71717A"
-                                tick={{ fontSize: 11 }}
+                              <CartesianGrid
+                                strokeDasharray="3 3"
+                                horizontal={false}
+                                stroke="#E4E4E7"
                               />
-                              <Tooltip 
-                                contentStyle={{ 
-                                  borderRadius: '8px', 
-                                  border: 'none', 
-                                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                  backgroundColor: '#FFFFFF'
+                              <XAxis
+                                type="number"
+                                tick={{ fontSize: 12 }}
+                                stroke="#71717A"
+                              />
+                              <YAxis
+                                dataKey="pagePath"
+                                type="category"
+                                width={140}
+                                stroke="#71717A"
+                                tick={{ fontSize: 10 }}
+                                tickFormatter={(value) => {
+                                  if (!value) return "N/A";
+                                  const path =
+                                    value.length > 30
+                                      ? value.substring(0, 30) + "..."
+                                      : value;
+                                  return path;
                                 }}
-                                formatter={(value) => [value.toLocaleString(), 'Sessions']}
+                              />
+                              <Tooltip
+                                contentStyle={{
+                                  borderRadius: "8px",
+                                  border: "none",
+                                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                  backgroundColor: "#FFFFFF",
+                                }}
+                                formatter={(value) => [
+                                  value.toLocaleString(),
+                                  "Views",
+                                ]}
                               />
                               <Legend />
-                              <Bar 
-                                dataKey="sessions" 
+                              <Bar
+                                dataKey="views"
                                 radius={[0, 4, 4, 0]}
                                 fill={theme.palette.primary.main}
-                                name="Sessions"
+                                name="Page Views"
                               />
                             </BarChart>
                           </ResponsiveContainer>
                         </CardContent>
                       </Card>
                     </motion.div>
-                  </Grid>
-                </Grid>
-              )}
+                  )}
 
-              {/* Stacked Bar Chart - Sessions vs Users by Channel */}
-              {dashboardData.chart_data?.traffic_sources && dashboardData.chart_data.traffic_sources.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 1.1 }}
-                >
-                  <Card sx={{ mb: 3, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                    <CardContent sx={{ p: 3 }}>
-                      <Typography 
-                        variant="h6" 
-                        mb={2} 
-                        fontWeight={600}
-                        sx={{ fontSize: '1.125rem', letterSpacing: '-0.01em' }}
-                      >
-                        Sessions vs Users by Channel
-                      </Typography>
-                      <ResponsiveContainer width="100%" height={350}>
-                        <BarChart
-                          data={dashboardData.chart_data.traffic_sources.slice(0, 8)}
-                          margin={{ top: 5, right: 30, left: 20, bottom: 60 }}
+                {/* Sessions by Channel - Donut Chart & Bar Chart */}
+                {dashboardData.chart_data?.traffic_sources &&
+                  dashboardData.chart_data.traffic_sources.length > 0 && (
+                    <Grid container spacing={3} sx={{ mb: 3 }}>
+                      {/* Donut Chart */}
+                      <Grid item xs={12} md={6}>
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.5, delay: 1.0 }}
                         >
-                          <CartesianGrid strokeDasharray="3 3" stroke="#E4E4E7" />
-                          <XAxis 
-                            dataKey="source" 
-                            tick={{ fontSize: 11 }}
-                            stroke="#71717A"
-                            angle={-45}
-                            textAnchor="end"
-                            height={80}
-                          />
-                          <YAxis tick={{ fontSize: 12 }} stroke="#71717A" />
-                          <Tooltip 
-                            contentStyle={{ 
-                              borderRadius: '8px', 
-                              border: 'none', 
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                              backgroundColor: '#FFFFFF'
+                          <Card
+                            sx={{
+                              height: "100%",
+                              borderRadius: 2,
+                              border: `1px solid ${theme.palette.divider}`,
+                              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
                             }}
-                            formatter={(value) => [value.toLocaleString(), '']}
-                          />
-                          <Legend />
-                          <Bar 
-                            dataKey="sessions" 
-                            stackId="a" 
-                            fill={theme.palette.primary.main}
-                            name="Sessions"
-                            radius={[0, 0, 0, 0]}
-                          />
-                          <Bar 
-                            dataKey="users" 
-                            stackId="a" 
-                            fill={theme.palette.secondary.main}
-                            name="Users"
-                            radius={[4, 4, 0, 0]}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              )}
+                          >
+                            <CardContent sx={{ p: 3 }}>
+                              <Typography
+                                variant="h6"
+                                mb={2}
+                                fontWeight={600}
+                                sx={{
+                                  fontSize: "1.125rem",
+                                  letterSpacing: "-0.01em",
+                                }}
+                              >
+                                Traffic Sources Distribution
+                              </Typography>
+                              <ResponsiveContainer width="100%" height={300}>
+                                <PieChart>
+                                  <Pie
+                                    data={dashboardData.chart_data.traffic_sources
+                                      .slice(0, 6)
+                                      .map((item) => ({
+                                        name: item.source || "Unknown",
+                                        value: item.sessions || 0,
+                                      }))}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    label={({ name, percent }) =>
+                                      `${name}: ${(percent * 100).toFixed(0)}%`
+                                    }
+                                    outerRadius={100}
+                                    innerRadius={60}
+                                    fill="#8884d8"
+                                    dataKey="value"
+                                  >
+                                    {dashboardData.chart_data.traffic_sources
+                                      .slice(0, 6)
+                                      .map((entry, index) => {
+                                        const colors = [
+                                          theme.palette.primary.main,
+                                          theme.palette.secondary.main,
+                                          theme.palette.success.main,
+                                          theme.palette.warning.main,
+                                          theme.palette.error.main,
+                                          theme.palette.info.main,
+                                        ];
+                                        return (
+                                          <Cell
+                                            key={`cell-${index}`}
+                                            fill={colors[index % colors.length]}
+                                          />
+                                        );
+                                      })}
+                                  </Pie>
+                                  <Tooltip
+                                    contentStyle={{
+                                      borderRadius: "8px",
+                                      border: "none",
+                                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                      backgroundColor: "#FFFFFF",
+                                    }}
+                                    formatter={(value) => [
+                                      value.toLocaleString(),
+                                      "Sessions",
+                                    ]}
+                                  />
+                                  <Legend
+                                    wrapperStyle={{ paddingTop: "20px" }}
+                                    formatter={(value) =>
+                                      value.length > 15
+                                        ? value.substring(0, 15) + "..."
+                                        : value
+                                    }
+                                  />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      </Grid>
 
-              {/* Geographic Breakdown - Bar Chart & Pie Chart */}
-              {dashboardData.chart_data?.geographic_breakdown && dashboardData.chart_data.geographic_breakdown.length > 0 && (
-                <Grid container spacing={3} sx={{ mb: 3 }}>
-                  {/* Bar Chart */}
-                  <Grid item xs={12} md={7}>
+                      {/* Horizontal Bar Chart */}
+                      <Grid item xs={12} md={6}>
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.5, delay: 1.05 }}
+                        >
+                          <Card
+                            sx={{
+                              height: "100%",
+                              borderRadius: 2,
+                              border: `1px solid ${theme.palette.divider}`,
+                              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                            }}
+                          >
+                            <CardContent sx={{ p: 3 }}>
+                              <Typography
+                                variant="h6"
+                                mb={2}
+                                fontWeight={600}
+                                sx={{
+                                  fontSize: "1.125rem",
+                                  letterSpacing: "-0.01em",
+                                }}
+                              >
+                                Sessions by Channel
+                              </Typography>
+                              <ResponsiveContainer width="100%" height={300}>
+                                <BarChart
+                                  data={dashboardData.chart_data.traffic_sources.slice(
+                                    0,
+                                    8
+                                  )}
+                                  layout="vertical"
+                                  margin={{
+                                    top: 5,
+                                    right: 30,
+                                    left: 80,
+                                    bottom: 5,
+                                  }}
+                                >
+                                  <CartesianGrid
+                                    strokeDasharray="3 3"
+                                    horizontal={false}
+                                    stroke="#E4E4E7"
+                                  />
+                                  <XAxis
+                                    type="number"
+                                    tick={{ fontSize: 12 }}
+                                    stroke="#71717A"
+                                  />
+                                  <YAxis
+                                    dataKey="source"
+                                    type="category"
+                                    width={75}
+                                    stroke="#71717A"
+                                    tick={{ fontSize: 11 }}
+                                  />
+                                  <Tooltip
+                                    contentStyle={{
+                                      borderRadius: "8px",
+                                      border: "none",
+                                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                      backgroundColor: "#FFFFFF",
+                                    }}
+                                    formatter={(value) => [
+                                      value.toLocaleString(),
+                                      "Sessions",
+                                    ]}
+                                  />
+                                  <Legend />
+                                  <Bar
+                                    dataKey="sessions"
+                                    radius={[0, 4, 4, 0]}
+                                    fill={theme.palette.primary.main}
+                                    name="Sessions"
+                                  />
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      </Grid>
+                    </Grid>
+                  )}
+
+                {/* Stacked Bar Chart - Sessions vs Users by Channel */}
+                {dashboardData.chart_data?.traffic_sources &&
+                  dashboardData.chart_data.traffic_sources.length > 0 && (
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, delay: 1.2 }}
+                      transition={{ duration: 0.5, delay: 1.1 }}
                     >
-                      <Card sx={{ height: '100%', borderRadius: 2, border: `1px solid ${theme.palette.divider}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                      <Card
+                        sx={{
+                          mb: 3,
+                          borderRadius: 2,
+                          border: `1px solid ${theme.palette.divider}`,
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                        }}
+                      >
                         <CardContent sx={{ p: 3 }}>
-                          <Typography 
-                            variant="h6" 
-                            mb={2} 
+                          <Typography
+                            variant="h6"
+                            mb={2}
                             fontWeight={600}
-                            sx={{ fontSize: '1.125rem', letterSpacing: '-0.01em' }}
+                            sx={{
+                              fontSize: "1.125rem",
+                              letterSpacing: "-0.01em",
+                            }}
                           >
-                            Geographic Distribution
+                            Sessions vs Users by Channel
                           </Typography>
                           <ResponsiveContainer width="100%" height={350}>
                             <BarChart
-                              data={dashboardData.chart_data.geographic_breakdown.slice(0, 10)}
-                              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                              data={dashboardData.chart_data.traffic_sources.slice(
+                                0,
+                                8
+                              )}
+                              margin={{
+                                top: 5,
+                                right: 30,
+                                left: 20,
+                                bottom: 60,
+                              }}
                             >
-                              <CartesianGrid strokeDasharray="3 3" stroke="#E4E4E7" />
-                              <XAxis 
-                                dataKey="country" 
+                              <CartesianGrid
+                                strokeDasharray="3 3"
+                                stroke="#E4E4E7"
+                              />
+                              <XAxis
+                                dataKey="source"
                                 tick={{ fontSize: 11 }}
                                 stroke="#71717A"
                                 angle={-45}
@@ -2146,460 +2875,262 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                                 height={80}
                               />
                               <YAxis tick={{ fontSize: 12 }} stroke="#71717A" />
-                              <Tooltip 
-                                contentStyle={{ 
-                                  borderRadius: '8px', 
-                                  border: 'none', 
-                                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                  backgroundColor: '#FFFFFF'
+                              <Tooltip
+                                contentStyle={{
+                                  borderRadius: "8px",
+                                  border: "none",
+                                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                  backgroundColor: "#FFFFFF",
                                 }}
-                                formatter={(value) => [value.toLocaleString(), 'Users']}
+                                formatter={(value) => [
+                                  value.toLocaleString(),
+                                  "",
+                                ]}
                               />
                               <Legend />
-                              <Bar 
-                                dataKey="users" 
-                                radius={[4, 4, 0, 0]}
+                              <Bar
+                                dataKey="sessions"
+                                stackId="a"
                                 fill={theme.palette.primary.main}
+                                name="Sessions"
+                                radius={[0, 0, 0, 0]}
+                              />
+                              <Bar
+                                dataKey="users"
+                                stackId="a"
+                                fill={theme.palette.secondary.main}
                                 name="Users"
+                                radius={[4, 4, 0, 0]}
                               />
                             </BarChart>
                           </ResponsiveContainer>
                         </CardContent>
                       </Card>
                     </motion.div>
-                  </Grid>
+                  )}
 
-                  {/* Pie Chart */}
-                  <Grid item xs={12} md={5}>
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, delay: 1.25 }}
-                    >
-                      <Card sx={{ height: '100%', borderRadius: 2, border: `1px solid ${theme.palette.divider}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                        <CardContent sx={{ p: 3 }}>
-                          <Typography 
-                            variant="h6" 
-                            mb={2} 
-                            fontWeight={600}
-                            sx={{ fontSize: '1.125rem', letterSpacing: '-0.01em' }}
-                          >
-                            Top Countries
-                          </Typography>
-                          <ResponsiveContainer width="100%" height={350}>
-                            <PieChart>
-                              <Pie
-                                data={dashboardData.chart_data.geographic_breakdown.slice(0, 6).map((item) => ({
-                                  name: item.country || 'Unknown',
-                                  value: item.users || 0,
-                                }))}
-                                cx="50%"
-                                cy="50%"
-                                labelLine={false}
-                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                                outerRadius={100}
-                                fill="#8884d8"
-                                dataKey="value"
-                              >
-                                {dashboardData.chart_data.geographic_breakdown.slice(0, 6).map((entry, index) => {
-                                  const colors = [
-                                    theme.palette.primary.main,
-                                    theme.palette.secondary.main,
-                                    theme.palette.success.main,
-                                    theme.palette.warning.main,
-                                    theme.palette.error.main,
-                                    theme.palette.info.main
-                                  ]
-                                  return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-                                })}
-                              </Pie>
-                              <Tooltip 
-                                contentStyle={{ 
-                                  borderRadius: '8px', 
-                                  border: 'none', 
-                                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                  backgroundColor: '#FFFFFF'
-                                }}
-                                formatter={(value) => [value.toLocaleString(), 'Users']}
-                              />
-                              <Legend 
-                                wrapperStyle={{ paddingTop: '20px' }}
-                              />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  </Grid>
-                </Grid>
-              )}
-
-              {/* KPI Donut Charts - Bounce Rate, Engagement Rate, Brand Presence */}
-              <Grid container spacing={3} sx={{ mb: 3 }}>
-                {/* Bounce Rate Donut */}
-                {dashboardData?.kpis?.bounce_rate && (
-                  <Grid item xs={12} sm={6} md={4}>
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, delay: 1.3 }}
-                    >
-                      <Card sx={{ height: '100%', borderRadius: 2, border: `1px solid ${theme.palette.divider}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                        <CardContent sx={{ p: 3, textAlign: 'center' }}>
-                          <Typography 
-                            variant="h6" 
-                            mb={2} 
-                            fontWeight={600}
-                            sx={{ fontSize: '1rem', letterSpacing: '-0.01em' }}
-                          >
-                            Bounce Rate
-                          </Typography>
-                          <ResponsiveContainer width="100%" height={250}>
-                            <PieChart>
-                              <Pie
-                                data={[
-                                  { name: 'Bounced', value: dashboardData.kpis.bounce_rate.value || 0 },
-                                  { name: 'Engaged', value: 100 - (dashboardData.kpis.bounce_rate.value || 0) }
-                                ]}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={60}
-                                outerRadius={90}
-                                startAngle={90}
-                                endAngle={-270}
-                                dataKey="value"
-                                label={({ name, value }) => `${name}: ${value.toFixed(1)}%`}
-                                labelLine={false}
-                              >
-                                <Cell fill={theme.palette.error.main} />
-                                <Cell fill={theme.palette.success.main} />
-                              </Pie>
-                              <Tooltip 
-                                contentStyle={{ 
-                                  borderRadius: '8px', 
-                                  border: 'none', 
-                                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                  backgroundColor: '#FFFFFF'
-                                }}
-                                formatter={(value, name) => [`${value.toFixed(1)}%`, name]}
-                              />
-                              <Legend 
-                                wrapperStyle={{ paddingTop: '10px' }}
-                                formatter={(value) => value}
-                              />
-                            </PieChart>
-                          </ResponsiveContainer>
-                          <Box mt={2}>
-                            <Typography 
-                              variant="h4" 
-                              fontWeight={700}
-                              sx={{ fontSize: '2rem' }}
-                              color={dashboardData.kpis.bounce_rate.value > 50 ? 'error.main' : 'success.main'}
-                            >
-                              {(dashboardData.kpis.bounce_rate.value || 0).toFixed(1)}%
-                            </Typography>
-                            <Typography 
-                              variant="caption" 
-                              color="text.secondary"
-                              sx={{ fontSize: '0.75rem', display: 'block', mt: 0.5 }}
-                            >
-                              Bounced Sessions
-                            </Typography>
-                          </Box>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  </Grid>
-                )}
-
-                {/* Engagement Rate Donut */}
-                {dashboardData?.kpis?.ga4_engagement_rate && (
-                  <Grid item xs={12} sm={6} md={4}>
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, delay: 1.35 }}
-                    >
-                      <Card sx={{ height: '100%', borderRadius: 2, border: `1px solid ${theme.palette.divider}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                        <CardContent sx={{ p: 3, textAlign: 'center' }}>
-                          <Typography 
-                            variant="h6" 
-                            mb={2} 
-                            fontWeight={600}
-                            sx={{ fontSize: '1rem', letterSpacing: '-0.01em' }}
-                          >
-                            Engagement Rate
-                          </Typography>
-                          <ResponsiveContainer width="100%" height={250}>
-                            <PieChart>
-                              <Pie
-                                data={[
-                                  { name: 'Engaged', value: (dashboardData.kpis.ga4_engagement_rate.value || 0) * 100 },
-                                  { name: 'Not Engaged', value: 100 - ((dashboardData.kpis.ga4_engagement_rate.value || 0) * 100) }
-                                ]}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={60}
-                                outerRadius={90}
-                                startAngle={90}
-                                endAngle={-270}
-                                dataKey="value"
-                                label={({ name, value }) => `${name}: ${value.toFixed(1)}%`}
-                                labelLine={false}
-                              >
-                                <Cell fill={theme.palette.success.main} />
-                                <Cell fill={theme.palette.grey[300]} />
-                              </Pie>
-                              <Tooltip 
-                                contentStyle={{ 
-                                  borderRadius: '8px', 
-                                  border: 'none', 
-                                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                  backgroundColor: '#FFFFFF'
-                                }}
-                                formatter={(value, name) => [`${value.toFixed(1)}%`, name]}
-                              />
-                              <Legend 
-                                wrapperStyle={{ paddingTop: '10px' }}
-                                formatter={(value) => value}
-                              />
-                            </PieChart>
-                          </ResponsiveContainer>
-                          <Box mt={2}>
-                            <Typography 
-                              variant="h4" 
-                              fontWeight={700}
-                              sx={{ fontSize: '2rem' }}
-                              color="success.main"
-                            >
-                              {((dashboardData.kpis.ga4_engagement_rate.value || 0) * 100).toFixed(1)}%
-                            </Typography>
-                            <Typography 
-                              variant="caption" 
-                              color="text.secondary"
-                              sx={{ fontSize: '0.75rem', display: 'block', mt: 0.5 }}
-                            >
-                              Engaged Sessions
-                            </Typography>
-                          </Box>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  </Grid>
-                )}
-
-                {/* Brand Presence Rate Donut */}
-                {dashboardData?.kpis?.brand_presence_rate && (
-                  <Grid item xs={12} sm={6} md={4}>
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, delay: 1.4 }}
-                    >
-                      <Card sx={{ height: '100%', borderRadius: 2, border: `1px solid ${theme.palette.divider}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                        <CardContent sx={{ p: 3, textAlign: 'center' }}>
-                          <Typography 
-                            variant="h6" 
-                            mb={2} 
-                            fontWeight={600}
-                            sx={{ fontSize: '1rem', letterSpacing: '-0.01em' }}
-                          >
-                            Brand Presence Rate
-                          </Typography>
-                          <ResponsiveContainer width="100%" height={250}>
-                            <PieChart>
-                              <Pie
-                                data={[
-                                  { name: 'Present', value: dashboardData.kpis.brand_presence_rate.value || 0 },
-                                  { name: 'Absent', value: 100 - (dashboardData.kpis.brand_presence_rate.value || 0) }
-                                ]}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={60}
-                                outerRadius={90}
-                                startAngle={90}
-                                endAngle={-270}
-                                dataKey="value"
-                                label={({ name, value }) => `${name}: ${value.toFixed(1)}%`}
-                                labelLine={false}
-                              >
-                                <Cell fill={theme.palette.success.main} />
-                                <Cell fill={theme.palette.grey[300]} />
-                              </Pie>
-                              <Tooltip 
-                                contentStyle={{ 
-                                  borderRadius: '8px', 
-                                  border: 'none', 
-                                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                  backgroundColor: '#FFFFFF'
-                                }}
-                                formatter={(value, name) => [`${value.toFixed(1)}%`, name]}
-                              />
-                              <Legend 
-                                wrapperStyle={{ paddingTop: '10px' }}
-                                formatter={(value) => value}
-                              />
-                            </PieChart>
-                          </ResponsiveContainer>
-                          <Box mt={2}>
-                            <Typography 
-                              variant="h4" 
-                              fontWeight={700}
-                              sx={{ fontSize: '2rem' }}
-                              color="success.main"
-                            >
-                              {(dashboardData.kpis.brand_presence_rate.value || 0).toFixed(1)}%
-                            </Typography>
-                            <Typography 
-                              variant="caption" 
-                              color="text.secondary"
-                              sx={{ fontSize: '0.75rem', display: 'block', mt: 0.5 }}
-                            >
-                              Brand Present in Responses
-                            </Typography>
-                          </Box>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  </Grid>
-                )}
-              </Grid>
-
-              {/* Top Keywords Ranking - Bar Chart */}
-              {dashboardData.chart_data?.all_keywords_ranking && dashboardData.chart_data.all_keywords_ranking.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.2 }}
-                >
-                  <Card sx={{ mb: 3, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                    <CardContent sx={{ p: 3 }}>
-                      <Typography 
-                        variant="h6" 
-                        mb={2} 
-                        fontWeight={600}
-                        sx={{ fontSize: '1.125rem', letterSpacing: '-0.01em' }}
-                      >
-                        Top Keywords Ranking
-                      </Typography>
-                      <ResponsiveContainer width="100%" height={400}>
-                        <BarChart
-                          data={dashboardData.chart_data.all_keywords_ranking.slice(0, 15).map(kw => ({
-                            keyword: kw.keyword || 'Unknown',
-                            rank: kw.google_rank || 0,
-                            searchVolume: kw.search_volume || 0
-                          }))}
-                          layout="vertical"
-                          margin={{ top: 5, right: 30, left: 120, bottom: 5 }}
+                {/* Geographic Breakdown - Bar Chart & Pie Chart */}
+                {dashboardData.chart_data?.geographic_breakdown &&
+                  dashboardData.chart_data.geographic_breakdown.length > 0 && (
+                    <Grid container spacing={3} sx={{ mb: 3 }}>
+                      {/* Bar Chart */}
+                      <Grid item xs={12} md={7}>
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.5, delay: 1.2 }}
                         >
-                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E4E4E7" />
-                          <XAxis 
-                            type="number" 
-                            tick={{ fontSize: 12 }} 
-                            stroke="#71717A"
-                            domain={[0, 100]}
-                            reversed
-                            label={{ value: 'Ranking Position (Lower is Better)', position: 'insideBottom', offset: -5 }}
-                          />
-                          <YAxis 
-                            dataKey="keyword" 
-                            type="category" 
-                            width={110} 
-                            stroke="#71717A"
-                            tick={{ fontSize: 10 }}
-                            tickFormatter={(value) => {
-                              if (!value) return 'N/A'
-                              return value.length > 20 ? value.substring(0, 20) + '...' : value
+                          <Card
+                            sx={{
+                              height: "100%",
+                              borderRadius: 2,
+                              border: `1px solid ${theme.palette.divider}`,
+                              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
                             }}
-                          />
-                          <Tooltip 
-                            contentStyle={{ 
-                              borderRadius: '8px', 
-                              border: 'none', 
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                              backgroundColor: '#FFFFFF'
-                            }}
-                            formatter={(value, name) => {
-                              if (name === 'rank') return [`Position ${value}`, 'Rank']
-                              if (name === 'searchVolume') return [value.toLocaleString(), 'Search Volume']
-                              return [value, name]
-                            }}
-                          />
-                          <Legend />
-                          <Bar 
-                            dataKey="rank" 
-                            radius={[0, 4, 4, 0]}
-                            fill={theme.palette.primary.main}
-                            name="Rank"
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              )}
+                          >
+                            <CardContent sx={{ p: 3 }}>
+                              <Typography
+                                variant="h6"
+                                mb={2}
+                                fontWeight={600}
+                                sx={{
+                                  fontSize: "1.125rem",
+                                  letterSpacing: "-0.01em",
+                                }}
+                              >
+                                Geographic Distribution
+                              </Typography>
+                              <ResponsiveContainer width="100%" height={350}>
+                                <BarChart
+                                  data={dashboardData.chart_data.geographic_breakdown.slice(
+                                    0,
+                                    10
+                                  )}
+                                  margin={{
+                                    top: 5,
+                                    right: 30,
+                                    left: 20,
+                                    bottom: 5,
+                                  }}
+                                >
+                                  <CartesianGrid
+                                    strokeDasharray="3 3"
+                                    stroke="#E4E4E7"
+                                  />
+                                  <XAxis
+                                    dataKey="country"
+                                    tick={{ fontSize: 11 }}
+                                    stroke="#71717A"
+                                    angle={-45}
+                                    textAnchor="end"
+                                    height={80}
+                                  />
+                                  <YAxis
+                                    tick={{ fontSize: 12 }}
+                                    stroke="#71717A"
+                                  />
+                                  <Tooltip
+                                    contentStyle={{
+                                      borderRadius: "8px",
+                                      border: "none",
+                                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                      backgroundColor: "#FFFFFF",
+                                    }}
+                                    formatter={(value) => [
+                                      value.toLocaleString(),
+                                      "Users",
+                                    ]}
+                                  />
+                                  <Legend />
+                                  <Bar
+                                    dataKey="users"
+                                    radius={[4, 4, 0, 0]}
+                                    fill={theme.palette.primary.main}
+                                    name="Users"
+                                  />
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      </Grid>
 
-          {/* Scrunch AI Section */}
-          {(dashboardData?.kpis?.total_citations || dashboardData?.kpis?.brand_presence_rate || dashboardData?.kpis?.competitive_benchmarking || dashboardData?.chart_data?.top_performing_prompts) && (
-            <>
-              <Typography 
-                variant="h5" 
-                fontWeight={700} 
-                sx={{ 
-                  mt: 5, 
-                  mb: 3,
-                  fontSize: '1.5rem',
-                  letterSpacing: '-0.02em',
-                  color: 'text.primary'
-                }}
-              >
-                Scrunch AI
-              </Typography>
-              <Typography 
-                variant="body2" 
-                color="text.secondary"
-                sx={{ 
-                  mb: 3,
-                  fontSize: '0.875rem'
-                }}
-              >
-                AI platform presence and engagement metrics
-              </Typography>
+                      {/* Pie Chart */}
+                      <Grid item xs={12} md={5}>
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.5, delay: 1.25 }}
+                        >
+                          <Card
+                            sx={{
+                              height: "100%",
+                              borderRadius: 2,
+                              border: `1px solid ${theme.palette.divider}`,
+                              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                            }}
+                          >
+                            <CardContent sx={{ p: 3 }}>
+                              <Typography
+                                variant="h6"
+                                mb={2}
+                                fontWeight={600}
+                                sx={{
+                                  fontSize: "1.125rem",
+                                  letterSpacing: "-0.01em",
+                                }}
+                              >
+                                Top Countries
+                              </Typography>
+                              <ResponsiveContainer width="100%" height={350}>
+                                <PieChart>
+                                  <Pie
+                                    data={dashboardData.chart_data.geographic_breakdown
+                                      .slice(0, 6)
+                                      .map((item) => ({
+                                        name: item.country || "Unknown",
+                                        value: item.users || 0,
+                                      }))}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    label={({ name, percent }) =>
+                                      `${name}: ${(percent * 100).toFixed(0)}%`
+                                    }
+                                    outerRadius={100}
+                                    fill="#8884d8"
+                                    dataKey="value"
+                                  >
+                                    {dashboardData.chart_data.geographic_breakdown
+                                      .slice(0, 6)
+                                      .map((entry, index) => {
+                                        const colors = [
+                                          theme.palette.primary.main,
+                                          theme.palette.secondary.main,
+                                          theme.palette.success.main,
+                                          theme.palette.warning.main,
+                                          theme.palette.error.main,
+                                          theme.palette.info.main,
+                                        ];
+                                        return (
+                                          <Cell
+                                            key={`cell-${index}`}
+                                            fill={colors[index % colors.length]}
+                                          />
+                                        );
+                                      })}
+                                  </Pie>
+                                  <Tooltip
+                                    contentStyle={{
+                                      borderRadius: "8px",
+                                      border: "none",
+                                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                      backgroundColor: "#FFFFFF",
+                                    }}
+                                    formatter={(value) => [
+                                      value.toLocaleString(),
+                                      "Users",
+                                    ]}
+                                  />
+                                  <Legend
+                                    wrapperStyle={{ paddingTop: "20px" }}
+                                  />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      </Grid>
+                    </Grid>
+                  )}
 
-              {/* Brand Presence Rate Donut */}
-              {dashboardData?.kpis?.brand_presence_rate && (
-                <Box sx={{ mb: 4 }}>
-                  <Typography 
-                    variant="h6" 
-                    fontWeight={600} 
-                    mb={2}
-                    sx={{ fontSize: '1.125rem', letterSpacing: '-0.01em' }}
-                  >
-                    Brand Presence Metrics
-                  </Typography>
-                  <Grid container spacing={3}>
+                {/* KPI Donut Charts - Bounce Rate, Engagement Rate, Brand Presence */}
+                <Grid container spacing={3} sx={{ mb: 3 }}>
+                  {/* Bounce Rate Donut */}
+                  {dashboardData?.kpis?.bounce_rate && (
                     <Grid item xs={12} sm={6} md={4}>
                       <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5, delay: 0.1 }}
+                        transition={{ duration: 0.5, delay: 1.3 }}
                       >
-                        <Card sx={{ height: '100%', borderRadius: 2, border: `1px solid ${theme.palette.divider}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                          <CardContent sx={{ p: 3, textAlign: 'center' }}>
-                            <Typography 
-                              variant="h6" 
-                              mb={2} 
+                        <Card
+                          sx={{
+                            height: "100%",
+                            borderRadius: 2,
+                            border: `1px solid ${theme.palette.divider}`,
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                          }}
+                        >
+                          <CardContent sx={{ p: 3, textAlign: "center" }}>
+                            <Typography
+                              variant="h6"
+                              mb={2}
                               fontWeight={600}
-                              sx={{ fontSize: '1rem', letterSpacing: '-0.01em' }}
+                              sx={{
+                                fontSize: "1rem",
+                                letterSpacing: "-0.01em",
+                              }}
                             >
-                              Brand Presence Rate
+                              Bounce Rate
                             </Typography>
                             <ResponsiveContainer width="100%" height={250}>
                               <PieChart>
                                 <Pie
                                   data={[
-                                    { name: 'Present', value: dashboardData.kpis.brand_presence_rate.value || 0 },
-                                    { name: 'Absent', value: 100 - (dashboardData.kpis.brand_presence_rate.value || 0) }
+                                    {
+                                      name: "Bounced",
+                                      value:
+                                        dashboardData.kpis.bounce_rate.value ||
+                                        0,
+                                    },
+                                    {
+                                      name: "Engaged",
+                                      value:
+                                        100 -
+                                        (dashboardData.kpis.bounce_rate.value ||
+                                          0),
+                                    },
                                   ]}
                                   cx="50%"
                                   cy="50%"
@@ -2608,40 +3139,277 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                                   startAngle={90}
                                   endAngle={-270}
                                   dataKey="value"
-                                  label={({ name, value }) => `${name}: ${value.toFixed(1)}%`}
+                                  label={({ name, value }) =>
+                                    `${name}: ${value.toFixed(1)}%`
+                                  }
                                   labelLine={false}
                                 >
+                                  <Cell fill={theme.palette.error.main} />
                                   <Cell fill={theme.palette.success.main} />
-                                  <Cell fill={theme.palette.grey[300]} />
                                 </Pie>
-                                <Tooltip 
-                                  contentStyle={{ 
-                                    borderRadius: '8px', 
-                                    border: 'none', 
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                    backgroundColor: '#FFFFFF'
+                                <Tooltip
+                                  contentStyle={{
+                                    borderRadius: "8px",
+                                    border: "none",
+                                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                    backgroundColor: "#FFFFFF",
                                   }}
-                                  formatter={(value, name) => [`${value.toFixed(1)}%`, name]}
+                                  formatter={(value, name) => [
+                                    `${value.toFixed(1)}%`,
+                                    name,
+                                  ]}
                                 />
-                                <Legend 
-                                  wrapperStyle={{ paddingTop: '10px' }}
+                                <Legend
+                                  wrapperStyle={{ paddingTop: "10px" }}
                                   formatter={(value) => value}
                                 />
                               </PieChart>
                             </ResponsiveContainer>
                             <Box mt={2}>
-                              <Typography 
-                                variant="h4" 
+                              <Typography
+                                variant="h4"
                                 fontWeight={700}
-                                sx={{ fontSize: '2rem' }}
+                                sx={{ fontSize: "2rem" }}
+                                color={
+                                  dashboardData.kpis.bounce_rate.value > 50
+                                    ? "error.main"
+                                    : "success.main"
+                                }
+                              >
+                                {(
+                                  dashboardData.kpis.bounce_rate.value || 0
+                                ).toFixed(1)}
+                                %
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{
+                                  fontSize: "0.75rem",
+                                  display: "block",
+                                  mt: 0.5,
+                                }}
+                              >
+                                Bounced Sessions
+                              </Typography>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    </Grid>
+                  )}
+
+                  {/* Engagement Rate Donut */}
+                  {dashboardData?.kpis?.ga4_engagement_rate && (
+                    <Grid item xs={12} sm={6} md={4}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 1.35 }}
+                      >
+                        <Card
+                          sx={{
+                            height: "100%",
+                            borderRadius: 2,
+                            border: `1px solid ${theme.palette.divider}`,
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                          }}
+                        >
+                          <CardContent sx={{ p: 3, textAlign: "center" }}>
+                            <Typography
+                              variant="h6"
+                              mb={2}
+                              fontWeight={600}
+                              sx={{
+                                fontSize: "1rem",
+                                letterSpacing: "-0.01em",
+                              }}
+                            >
+                              Engagement Rate
+                            </Typography>
+                            <ResponsiveContainer width="100%" height={250}>
+                              <PieChart>
+                                <Pie
+                                  data={[
+                                    {
+                                      name: "Engaged",
+                                      value:
+                                        (dashboardData.kpis.ga4_engagement_rate
+                                          .value || 0) * 100,
+                                    },
+                                    {
+                                      name: "Not Engaged",
+                                      value:
+                                        100 -
+                                        (dashboardData.kpis.ga4_engagement_rate
+                                          .value || 0) *
+                                          100,
+                                    },
+                                  ]}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={60}
+                                  outerRadius={90}
+                                  startAngle={90}
+                                  endAngle={-270}
+                                  dataKey="value"
+                                  label={({ name, value }) =>
+                                    `${name}: ${value.toFixed(1)}%`
+                                  }
+                                  labelLine={false}
+                                >
+                                  <Cell fill={theme.palette.success.main} />
+                                  <Cell fill={theme.palette.grey[300]} />
+                                </Pie>
+                                <Tooltip
+                                  contentStyle={{
+                                    borderRadius: "8px",
+                                    border: "none",
+                                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                    backgroundColor: "#FFFFFF",
+                                  }}
+                                  formatter={(value, name) => [
+                                    `${value.toFixed(1)}%`,
+                                    name,
+                                  ]}
+                                />
+                                <Legend
+                                  wrapperStyle={{ paddingTop: "10px" }}
+                                  formatter={(value) => value}
+                                />
+                              </PieChart>
+                            </ResponsiveContainer>
+                            <Box mt={2}>
+                              <Typography
+                                variant="h4"
+                                fontWeight={700}
+                                sx={{ fontSize: "2rem" }}
                                 color="success.main"
                               >
-                                {(dashboardData.kpis.brand_presence_rate.value || 0).toFixed(1)}%
+                                {(
+                                  (dashboardData.kpis.ga4_engagement_rate
+                                    .value || 0) * 100
+                                ).toFixed(1)}
+                                %
                               </Typography>
-                              <Typography 
-                                variant="caption" 
+                              <Typography
+                                variant="caption"
                                 color="text.secondary"
-                                sx={{ fontSize: '0.75rem', display: 'block', mt: 0.5 }}
+                                sx={{
+                                  fontSize: "0.75rem",
+                                  display: "block",
+                                  mt: 0.5,
+                                }}
+                              >
+                                Engaged Sessions
+                              </Typography>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    </Grid>
+                  )}
+
+                  {/* Brand Presence Rate Donut */}
+                  {dashboardData?.kpis?.brand_presence_rate && (
+                    <Grid item xs={12} sm={6} md={4}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 1.4 }}
+                      >
+                        <Card
+                          sx={{
+                            height: "100%",
+                            borderRadius: 2,
+                            border: `1px solid ${theme.palette.divider}`,
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                          }}
+                        >
+                          <CardContent sx={{ p: 3, textAlign: "center" }}>
+                            <Typography
+                              variant="h6"
+                              mb={2}
+                              fontWeight={600}
+                              sx={{
+                                fontSize: "1rem",
+                                letterSpacing: "-0.01em",
+                              }}
+                            >
+                              Brand Presence Rate
+                            </Typography>
+                            <ResponsiveContainer width="100%" height={250}>
+                              <PieChart>
+                                <Pie
+                                  data={[
+                                    {
+                                      name: "Present",
+                                      value:
+                                        dashboardData.kpis.brand_presence_rate
+                                          .value || 0,
+                                    },
+                                    {
+                                      name: "Absent",
+                                      value:
+                                        100 -
+                                        (dashboardData.kpis.brand_presence_rate
+                                          .value || 0),
+                                    },
+                                  ]}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={60}
+                                  outerRadius={90}
+                                  startAngle={90}
+                                  endAngle={-270}
+                                  dataKey="value"
+                                  label={({ name, value }) =>
+                                    `${name}: ${value.toFixed(1)}%`
+                                  }
+                                  labelLine={false}
+                                >
+                                  <Cell fill={theme.palette.success.main} />
+                                  <Cell fill={theme.palette.grey[300]} />
+                                </Pie>
+                                <Tooltip
+                                  contentStyle={{
+                                    borderRadius: "8px",
+                                    border: "none",
+                                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                    backgroundColor: "#FFFFFF",
+                                  }}
+                                  formatter={(value, name) => [
+                                    `${value.toFixed(1)}%`,
+                                    name,
+                                  ]}
+                                />
+                                <Legend
+                                  wrapperStyle={{ paddingTop: "10px" }}
+                                  formatter={(value) => value}
+                                />
+                              </PieChart>
+                            </ResponsiveContainer>
+                            <Box mt={2}>
+                              <Typography
+                                variant="h4"
+                                fontWeight={700}
+                                sx={{ fontSize: "2rem" }}
+                                color="success.main"
+                              >
+                                {(
+                                  dashboardData.kpis.brand_presence_rate
+                                    .value || 0
+                                ).toFixed(1)}
+                                %
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{
+                                  fontSize: "0.75rem",
+                                  display: "block",
+                                  mt: 0.5,
+                                }}
                               >
                                 Brand Present in Responses
                               </Typography>
@@ -2650,979 +3418,12 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                         </Card>
                       </motion.div>
                     </Grid>
-                  </Grid>
-                </Box>
-              )}
-
-              {/* Competitive Benchmarking Chart */}
-              {dashboardData.kpis?.competitive_benchmarking && (
-                <Box sx={{ mb: 4 }}>
-                  <Typography 
-                    variant="h6" 
-                    fontWeight={600} 
-                    mb={2}
-                    sx={{ fontSize: '1.125rem', letterSpacing: '-0.01em' }}
-                  >
-                    Competitive Analysis
-                  </Typography>
-                  <Grid container spacing={3}>
-                    <Grid item xs={12} md={6}>
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5, delay: 0.15 }}
-                      >
-                        <Card sx={{ height: 400, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                          <CardContent sx={{ p: 3 }}>
-                            <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-                              <Typography variant="h6" fontWeight={600}>
-                                Competitive Benchmarking
-                              </Typography>
-                              <Chip
-                                label="Scrunch"
-                                size="small"
-                                sx={{
-                                  bgcolor: alpha(theme.palette.secondary.main, 0.1),
-                                  color: theme.palette.secondary.main,
-                                  fontWeight: 600,
-                                  fontSize: '10px',
-                                  height: 20,
-                                  borderRadius: '4px',
-                                  border: `1px solid ${alpha(theme.palette.secondary.main, 0.2)}`
-                                }}
-                              />
-                            </Box>
-                            <ResponsiveContainer width="100%" height={320}>
-                              <BarChart
-                                data={[
-                                  {
-                                    name: 'Your Brand',
-                                    visibility: dashboardData.kpis.competitive_benchmarking.value?.brand_visibility_percent || 0,
-                                    fill: theme.palette.primary.main
-                                  },
-                                  {
-                                    name: 'Competitor Avg',
-                                    visibility: dashboardData.kpis.competitive_benchmarking.value?.competitor_avg_visibility_percent || 0,
-                                    fill: theme.palette.grey[400]
-                                  }
-                                ]}
-                                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                              >
-                                <CartesianGrid strokeDasharray="3 3" stroke="#E4E4E7" />
-                                <XAxis 
-                                  dataKey="name" 
-                                  tick={{ fontSize: 12 }}
-                                  stroke="#71717A"
-                                />
-                                <YAxis 
-                                  tick={{ fontSize: 12 }} 
-                                  stroke="#71717A"
-                                  label={{ value: 'Visibility (%)', angle: -90, position: 'insideLeft' }}
-                                />
-                                <Tooltip 
-                                  contentStyle={{ 
-                                    borderRadius: '8px', 
-                                    border: 'none', 
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                    backgroundColor: '#FFFFFF'
-                                  }}
-                                  formatter={(value) => [`${value.toFixed(1)}%`, 'AI Visibility']}
-                                />
-                                <Legend />
-                                <Bar 
-                                  dataKey="visibility" 
-                                  radius={[8, 8, 0, 0]}
-                                  name="AI Visibility"
-                                >
-                                  {[
-                                    { fill: theme.palette.primary.main },
-                                    { fill: theme.palette.grey[400] }
-                                  ].map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                                  ))}
-                                </Bar>
-                              </BarChart>
-                            </ResponsiveContainer>
-                            {/* Change indicators */}
-                            {dashboardData.kpis.competitive_benchmarking.change && (
-                              <Box display="flex" gap={2} mt={2} justifyContent="center">
-                                {dashboardData.kpis.competitive_benchmarking.change.brand_visibility !== undefined && 
-                                 dashboardData.kpis.competitive_benchmarking.change.brand_visibility !== null && (
-                                  <Box display="flex" alignItems="center" gap={0.5}>
-                                    {dashboardData.kpis.competitive_benchmarking.change.brand_visibility >= 0 ? (
-                                      <TrendingUpIcon sx={{ fontSize: 14, color: '#34A853' }} />
-                                    ) : (
-                                      <TrendingDownIcon sx={{ fontSize: 14, color: '#EA4335' }} />
-                                    )}
-                                    <Typography variant="caption" sx={{ fontSize: '0.75rem', color: dashboardData.kpis.competitive_benchmarking.change.brand_visibility >= 0 ? '#34A853' : '#EA4335' }}>
-                                      Brand: {dashboardData.kpis.competitive_benchmarking.change.brand_visibility >= 0 ? '+' : ''}{dashboardData.kpis.competitive_benchmarking.change.brand_visibility.toFixed(1)}%
-                                    </Typography>
-                                  </Box>
-                                )}
-                                {dashboardData.kpis.competitive_benchmarking.change.competitor_avg_visibility !== undefined && 
-                                 dashboardData.kpis.competitive_benchmarking.change.competitor_avg_visibility !== null && (
-                                  <Box display="flex" alignItems="center" gap={0.5}>
-                                    {dashboardData.kpis.competitive_benchmarking.change.competitor_avg_visibility >= 0 ? (
-                                      <TrendingUpIcon sx={{ fontSize: 14, color: '#34A853' }} />
-                                    ) : (
-                                      <TrendingDownIcon sx={{ fontSize: 14, color: '#EA4335' }} />
-                                    )}
-                                    <Typography variant="caption" sx={{ fontSize: '0.75rem', color: dashboardData.kpis.competitive_benchmarking.change.competitor_avg_visibility >= 0 ? '#34A853' : '#EA4335' }}>
-                                      Competitor: {dashboardData.kpis.competitive_benchmarking.change.competitor_avg_visibility >= 0 ? '+' : ''}{dashboardData.kpis.competitive_benchmarking.change.competitor_avg_visibility.toFixed(1)}%
-                                    </Typography>
-                                  </Box>
-                                )}
-                              </Box>
-                            )}
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                    </Grid>
-                  </Grid>
-                </Box>
-              )}
-
-              {/* Top Performing Prompts Section */}
-              {dashboardData?.chart_data?.top_performing_prompts && dashboardData.chart_data.top_performing_prompts.length > 0 && (
-                <Box sx={{ mb: 4 }}>
-                  <Typography 
-                    variant="h6" 
-                    fontWeight={600} 
-                    mb={2}
-                    sx={{ fontSize: '1.125rem', letterSpacing: '-0.01em' }}
-                  >
-                    Top Performing Prompts
-                  </Typography>
-              
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-              >
-                <Card sx={{ mb: 3, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                  <CardContent sx={{ p: 3 }}>
-                    <Grid container spacing={2}>
-                      {dashboardData.chart_data.top_performing_prompts.map((prompt) => (
-                        <Grid item xs={12} sm={6} md={4} key={prompt.id}>
-                          <Paper
-                            sx={{
-                              p: 2,
-                              borderLeft: `3px solid ${theme.palette.primary.main}`,
-                              borderRadius: 1.5,
-                              transition: 'all 0.2s',
-                              '&:hover': {
-                                transform: 'translateX(2px)',
-                                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-                              },
-                            }}
-                          >
-                            <Box display="flex" alignItems="flex-start" justifyContent="space-between" mb={1}>
-                              <Box display="flex" alignItems="center" gap={1}>
-                                <Chip
-                                  label={`Rank #${prompt.rank}`}
-                                  size="small"
-                                  sx={{
-                                    bgcolor: 'primary.main',
-                                    color: 'white',
-                                    fontWeight: 700,
-                                    fontSize: '11px',
-                                    height: 22,
-                                    minWidth: 50,
-                                  }}
-                                />
-                              </Box>
-                            </Box>
-                            <Typography 
-                              variant="body2" 
-                              fontWeight={600}
-                              sx={{ 
-                                fontSize: '0.875rem',
-                                lineHeight: 1.4,
-                                display: '-webkit-box',
-                                WebkitLineClamp: 2,
-                                WebkitBoxOrient: 'vertical',
-                                overflow: 'hidden',
-                              }}
-                            >
-                              {prompt.text || 'N/A'}
-                            </Typography>
-                            <Box display="flex" gap={2} mt={1.5}>
-                              <Typography 
-                                variant="caption" 
-                                color="text.secondary"
-                                sx={{ fontSize: '11px', fontWeight: 500 }}
-                              >
-                                {prompt.responseCount?.toLocaleString() || 0} responses
-                              </Typography>
-                              <Typography 
-                                variant="caption" 
-                                color="text.secondary"
-                                sx={{ fontSize: '11px', fontWeight: 500 }}
-                              >
-                                {prompt.variants || 0} variants
-                              </Typography>
-                            </Box>
-                          </Paper>
-                        </Grid>
-                      ))}
-                    </Grid>
-                  </CardContent>
-                </Card>
-              </motion.div>
-                </Box>
-              )}
-
-              {/* Scrunch AI Insights Section */}
-              {dashboardData?.chart_data?.scrunch_ai_insights && dashboardData.chart_data.scrunch_ai_insights.length > 0 && (
-                <Box sx={{ mb: 4 }}>
-                  <Typography 
-                    variant="h6" 
-                    fontWeight={600} 
-                    mb={2}
-                    sx={{ fontSize: '1.125rem', letterSpacing: '-0.01em' }}
-                  >
-                    Scrunch AI Insights
-                  </Typography>
-              
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.4 }}
-              >
-                <Card sx={{ mb: 3, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                  <CardContent sx={{ p: 0 }}>
-                    <Box p={3} borderBottom="1px solid" borderColor="divider">
-                      <Typography 
-                        variant="h6" 
-                        fontWeight={600}
-                        sx={{ fontSize: '1.125rem', letterSpacing: '-0.01em' }}
-                      >
-                        Scrunch AI Insights
-                      </Typography>
-                    </Box>
-                    <TableContainer>
-                      <Table>
-                        <TableHead>
-                          <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
-                            <TableCell sx={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', py: 1.5, minWidth: 200 }}>
-                              Seed Prompt
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', py: 1.5, minWidth: 120 }}>
-                              Data
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', py: 1.5, minWidth: 120 }}>
-                              Presence
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', py: 1.5, minWidth: 100 }}>
-                              Citations
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', py: 1.5, minWidth: 100 }}>
-                              Competitors
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', py: 1.5, minWidth: 100 }}>
-                              Stage
-                            </TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {dashboardData.chart_data.scrunch_ai_insights.map((insight) => (
-                            <TableRow 
-                              key={insight.id || insight.seedPrompt}
-                              hover
-                              sx={{
-                                transition: 'all 0.2s',
-                                '&:hover': {
-                                  bgcolor: alpha(theme.palette.primary.main, 0.02),
-                                },
-                              }}
-                            >
-                              <TableCell sx={{ py: 2 }}>
-                                <Box>
-                                  <Typography 
-                                    variant="body2" 
-                                    fontWeight={600}
-                                    sx={{ 
-                                      fontSize: '0.875rem',
-                                      mb: 0.5,
-                                      lineHeight: 1.4,
-                                    }}
-                                  >
-                                    {insight.seedPrompt.length > 60 
-                                      ? insight.seedPrompt.substring(0, 60) + '...' 
-                                      : insight.seedPrompt}
-                                  </Typography>
-                                  <Typography 
-                                    variant="caption" 
-                                    color="text.secondary"
-                                    sx={{ fontSize: '11px', fontStyle: 'italic' }}
-                                  >
-                                    {insight.category}
-                                  </Typography>
-                                </Box>
-                              </TableCell>
-                              <TableCell sx={{ py: 2 }}>
-                                <Box>
-                                  <Typography 
-                                    variant="body2" 
-                                    sx={{ fontSize: '0.875rem', fontWeight: 600, mb: 0.25 }}
-                                  >
-                                    {insight.variants?.toLocaleString() || 0} variants
-                                  </Typography>
-                                  <Typography 
-                                    variant="caption" 
-                                    color="text.secondary"
-                                    sx={{ fontSize: '0.75rem' }}
-                                  >
-                                    {insight.responses?.toLocaleString() || 0} responses
-                                  </Typography>
-                                </Box>
-                              </TableCell>
-                              <TableCell sx={{ py: 2 }}>
-                                <Box>
-                                  <Typography 
-                                    variant="body2" 
-                                    fontWeight={700}
-                                    sx={{ fontSize: '0.9375rem', mb: 0.25 }}
-                                  >
-                                    {insight.presence}%
-                                  </Typography>
-                                  {insight.presenceChange !== undefined && (
-                                    <Box display="flex" alignItems="center" gap={0.5}>
-                                      {insight.presenceChange >= 0 ? (
-                                        <TrendingUpIcon sx={{ fontSize: 12, color: 'success.main' }} />
-                                      ) : (
-                                        <TrendingDownIcon sx={{ fontSize: 12, color: 'error.main' }} />
-                                      )}
-                                      <Typography 
-                                        variant="caption" 
-                                        sx={{ 
-                                          fontSize: '11px',
-                                          fontWeight: 600,
-                                          color: insight.presenceChange >= 0 ? 'success.main' : 'error.main'
-                                        }}
-                                      >
-                                        {insight.presenceChange >= 0 ? '+' : ''}{insight.presenceChange.toFixed(1)}%
-                                      </Typography>
-                                    </Box>
-                                  )}
-                                </Box>
-                              </TableCell>
-                              <TableCell sx={{ py: 2 }}>
-                                <Box>
-                                  <Typography 
-                                    variant="body2" 
-                                    fontWeight={600}
-                                    sx={{ fontSize: '0.9375rem', mb: 0.25 }}
-                                  >
-                                    {insight.citations || 0}
-                                  </Typography>
-                                  {insight.citationsChange !== undefined && (
-                                    <Box display="flex" alignItems="center" gap={0.5}>
-                                      {insight.citationsChange >= 0 ? (
-                                        <TrendingUpIcon sx={{ fontSize: 12, color: 'success.main' }} />
-                                      ) : (
-                                        <TrendingDownIcon sx={{ fontSize: 12, color: 'error.main' }} />
-                                      )}
-                                      <Typography 
-                                        variant="caption" 
-                                        sx={{ 
-                                          fontSize: '11px',
-                                          fontWeight: 600,
-                                          color: insight.citationsChange >= 0 ? 'success.main' : 'error.main'
-                                        }}
-                                      >
-                                        {insight.citationsChange >= 0 ? '+' : ''}{insight.citationsChange}
-                                      </Typography>
-                                    </Box>
-                                  )}
-                                </Box>
-                              </TableCell>
-                              <TableCell sx={{ py: 2 }}>
-                                <Box>
-                                  <Typography 
-                                    variant="body2" 
-                                    fontWeight={600}
-                                    sx={{ fontSize: '0.9375rem', mb: 0.25 }}
-                                  >
-                                    {insight.competitors || 0} active
-                                  </Typography>
-                                  {insight.competitorsChange !== undefined && (
-                                    <Typography 
-                                      variant="caption" 
-                                      color="text.secondary"
-                                      sx={{ fontSize: '11px' }}
-                                    >
-                                      {insight.competitorsChange >= 0 ? '+' : ''}{insight.competitorsChange}
-                                    </Typography>
-                                  )}
-                                </Box>
-                              </TableCell>
-                              <TableCell sx={{ py: 2 }}>
-                                <Chip
-                                  label={insight.stage}
-                                  size="small"
-                                  sx={{
-                                    bgcolor: insight.stage === 'Awareness' ? alpha(theme.palette.info.main, 0.1) :
-                                             insight.stage === 'Evaluation' ? alpha(theme.palette.warning.main, 0.1) :
-                                             alpha(theme.palette.success.main, 0.1),
-                                    color: insight.stage === 'Awareness' ? 'info.main' :
-                                           insight.stage === 'Evaluation' ? 'warning.main' :
-                                           'success.main',
-                                    fontWeight: 600,
-                                    fontSize: '11px',
-                                    height: 24,
-                                  }}
-                                />
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                    {dashboardData.chart_data.scrunch_ai_insights.length === 0 && (
-                      <Box p={4} textAlign="center">
-                        <Typography color="text.secondary" sx={{ fontSize: '0.875rem' }}>
-                          No insights available
-                        </Typography>
-                      </Box>
-                    )}
-                  </CardContent>
-                </Card>
-              </motion.div>
-                </Box>
-              )}
-            </>
-          )}
-
-          {/* Brand Analytics Charts Section */}
-          {brandAnalytics && (
-            <>
-              <Typography 
-                variant="h5" 
-                fontWeight={700} 
-                sx={{ 
-                  mt: 5, 
-                  mb: 3,
-                  fontSize: '1.5rem',
-                  letterSpacing: '-0.02em',
-                  color: 'text.primary'
-                }}
-              >
-                Brand Analytics Insights
-              </Typography>
-
-              <Grid container spacing={2.5} sx={{ mb: 3 }}>
-                {/* Platform Distribution - Donut Chart */}
-                {brandAnalytics.platform_distribution && Object.keys(brandAnalytics.platform_distribution).length > 0 && (
-                  <Grid item xs={12} md={6}>
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, delay: 0.7 }}
-                    >
-                      <Card
-                        sx={{
-                          borderRadius: 2,
-                          border: `1px solid ${theme.palette.divider}`,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                        }}
-                      >
-                        <CardContent sx={{ p: 3 }}>
-                          <Typography variant="h6" mb={3} fontWeight={600} sx={{ fontSize: '1rem' }}>
-                            Platform Distribution
-                          </Typography>
-                          <ResponsiveContainer width="100%" height={300}>
-                            <PieChart>
-                              <Pie
-                                data={Object.entries(brandAnalytics.platform_distribution).map(([name, value]) => ({
-                                  name,
-                                  value
-                                }))}
-                                cx="50%"
-                                cy="50%"
-                                labelLine={false}
-                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                                outerRadius={100}
-                                innerRadius={60}
-                                fill="#8884d8"
-                                dataKey="value"
-                              >
-                                {Object.entries(brandAnalytics.platform_distribution).map((entry, index) => {
-                                  const softColors = [
-                                    'rgba(0, 122, 255, 0.5)',      // Blue
-                                    'rgba(52, 199, 89, 0.5)',      // Green
-                                    'rgba(255, 149, 0, 0.5)',      // Orange
-                                    'rgba(255, 45, 85, 0.5)',      // Red
-                                    'rgba(88, 86, 214, 0.5)',      // Purple
-                                    'rgba(255, 193, 7, 0.5)',      // Yellow
-                                    'rgba(90, 200, 250, 0.5)',     // Light Blue
-                                  ]
-                                  return <Cell key={`cell-${index}`} fill={softColors[index % softColors.length]} />
-                                })}
-                              </Pie>
-                              <Tooltip 
-                                contentStyle={{ 
-                                  borderRadius: '8px', 
-                                  border: 'none', 
-                                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                  backgroundColor: '#FFFFFF'
-                                }}
-                              />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  </Grid>
-                )}
-
-                {/* Stage Distribution - Pie Chart */}
-                {brandAnalytics.stage_distribution && Object.keys(brandAnalytics.stage_distribution).length > 0 && (
-                  <Grid item xs={12} md={6}>
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, delay: 0.8 }}
-                    >
-                      <Card
-                        sx={{
-                          borderRadius: 2,
-                          border: `1px solid ${theme.palette.divider}`,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                        }}
-                      >
-                        <CardContent sx={{ p: 3 }}>
-                          <Typography variant="h6" mb={3} fontWeight={600} sx={{ fontSize: '1rem' }}>
-                            Funnel Stage Distribution
-                          </Typography>
-                          <ResponsiveContainer width="100%" height={300}>
-                            <PieChart>
-                              <Pie
-                                data={Object.entries(brandAnalytics.stage_distribution).map(([name, value]) => ({
-                                  name,
-                                  value
-                                }))}
-                                cx="50%"
-                                cy="50%"
-                                labelLine={false}
-                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                                outerRadius={100}
-                                fill="#8884d8"
-                                dataKey="value"
-                              >
-                                {Object.entries(brandAnalytics.stage_distribution).map((entry, index) => {
-                                  const softColors = [
-                                    'rgba(59, 130, 246, 0.6)',      // Light blue
-                                    'rgba(20, 184, 166, 0.6)',      // Teal/Green
-                                    'rgba(251, 146, 60, 0.6)',      // Orange
-                                    'rgba(239, 68, 68, 0.6)',       // Orange-red
-                                    'rgba(88, 86, 214, 0.6)',       // Purple
-                                  ]
-                                  return <Cell key={`cell-${index}`} fill={softColors[index % softColors.length]} />
-                                })}
-                              </Pie>
-                              <Tooltip 
-                                contentStyle={{ 
-                                  borderRadius: '8px', 
-                                  border: 'none', 
-                                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                  backgroundColor: '#FFFFFF'
-                                }}
-                              />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  </Grid>
-                )}
-
-                {/* Brand Sentiment - Donut Chart */}
-                {brandAnalytics.brand_sentiment && Object.keys(brandAnalytics.brand_sentiment).filter(key => brandAnalytics.brand_sentiment[key] > 0).length > 0 && (
-                  <Grid item xs={12} md={6}>
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, delay: 0.9 }}
-                    >
-                      <Card
-                        sx={{
-                          borderRadius: 2,
-                          border: `1px solid ${theme.palette.divider}`,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                        }}
-                      >
-                        <CardContent sx={{ p: 3 }}>
-                          <Typography variant="h6" mb={3} fontWeight={600} sx={{ fontSize: '1rem' }}>
-                            Brand Sentiment
-                          </Typography>
-                          <ResponsiveContainer width="100%" height={300}>
-                            <PieChart>
-                              <Pie
-                                data={Object.entries(brandAnalytics.brand_sentiment)
-                                  .filter(([name, value]) => value > 0)
-                                  .map(([name, value]) => ({
-                                    name: name.charAt(0).toUpperCase() + name.slice(1),
-                                    value
-                                  }))}
-                                cx="50%"
-                                cy="50%"
-                                labelLine={false}
-                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                                outerRadius={100}
-                                innerRadius={60}
-                                fill="#8884d8"
-                                dataKey="value"
-                              >
-                                {Object.entries(brandAnalytics.brand_sentiment)
-                                  .filter(([name, value]) => value > 0)
-                                  .map((entry, index) => {
-                                    const colors = {
-                                      positive: 'rgba(20, 184, 166, 0.6)',      // Teal/Green
-                                      negative: 'rgba(239, 68, 68, 0.6)',       // Orange-red
-                                      neutral: 'rgba(251, 146, 60, 0.6)',       // Orange
-                                      null: 'rgba(88, 86, 214, 0.6)',           // Purple
-                                    }
-                                    const key = entry[0].toLowerCase()
-                                    return <Cell key={`cell-${index}`} fill={colors[key] || 'rgba(88, 86, 214, 0.6)'} />
-                                  })}
-                              </Pie>
-                              <Tooltip 
-                                contentStyle={{ 
-                                  borderRadius: '8px', 
-                                  border: 'none', 
-                                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                  backgroundColor: '#FFFFFF'
-                                }}
-                              />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  </Grid>
-                )}
-
-              </Grid>
-
-              {/* Top Competitors - List */}
-              {brandAnalytics.top_competitors && brandAnalytics.top_competitors.length > 0 && (
-                <Grid container spacing={2.5} sx={{ mb: 3 }}>
-                  <Grid item xs={12} md={6}>
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, delay: 1.1 }}
-                    >
-                      <Card
-                        sx={{
-                          borderRadius: 2,
-                          border: `1px solid ${theme.palette.divider}`,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                        }}
-                      >
-                        <CardContent sx={{ p: 3 }}>
-                          <Typography variant="h6" mb={2} fontWeight={600} sx={{ fontSize: '1rem' }}>
-                            Top Competitors
-                          </Typography>
-                          <Box display="flex" flexDirection="column" gap={1.5}>
-                            {brandAnalytics.top_competitors.slice(0, 10).map((comp, idx) => (
-                              <Paper
-                                key={idx}
-                                sx={{
-                                  p: 1.5,
-                                  borderLeft: `3px solid ${theme.palette.primary.main}`,
-                                  borderRadius: 1.5,
-                                  transition: 'all 0.2s',
-                                  '&:hover': {
-                                    transform: 'translateX(2px)',
-                                    boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-                                  },
-                                }}
-                              >
-                                <Box display="flex" justifyContent="space-between" alignItems="center">
-                                  <Box display="flex" alignItems="center" gap={1}>
-                                    <Chip
-                                      label={`#${idx + 1}`}
-                                      size="small"
-                                      sx={{
-                                        bgcolor: theme.palette.primary.main,
-                                        color: 'white',
-                                        fontWeight: 700,
-                                        fontSize: '0.7rem',
-                                        height: 20,
-                                        minWidth: 28,
-                                      }}
-                                    />
-                                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.875rem' }}>
-                                      {comp.name}
-                                    </Typography>
-                                  </Box>
-                                  <Typography variant="body2" fontWeight={700} color="primary.main" sx={{ fontSize: '0.875rem' }}>
-                                    {comp.count.toLocaleString()}
-                                  </Typography>
-                                </Box>
-                              </Paper>
-                            ))}
-                          </Box>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  </Grid>
-
-                  {/* Top Topics - Chips List */}
-                  {brandAnalytics.top_topics && brandAnalytics.top_topics.length > 0 && (
-                    <Grid item xs={12} md={6}>
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5, delay: 1.2 }}
-                      >
-                        <Card
-                          sx={{
-                            borderRadius: 2,
-                            border: `1px solid ${theme.palette.divider}`,
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                          }}
-                        >
-                          <CardContent sx={{ p: 3 }}>
-                            <Typography variant="h6" mb={2} fontWeight={600} sx={{ fontSize: '1rem' }}>
-                              Top Topics
-                            </Typography>
-                            <Box display="flex" flexWrap="wrap" gap={1}>
-                              {brandAnalytics.top_topics.slice(0, 20).map((topic, idx) => (
-                                <Chip
-                                  key={idx}
-                                  label={`${topic.topic} (${topic.count})`}
-                                  size="small"
-                                  sx={{
-                                    bgcolor: alpha(theme.palette.primary.main, 0.08),
-                                    color: 'primary.main',
-                                    fontWeight: 600,
-                                    fontSize: '0.75rem',
-                                    height: 28,
-                                    '&:hover': {
-                                      bgcolor: alpha(theme.palette.primary.main, 0.15),
-                                    },
-                                  }}
-                                />
-                              ))}
-                            </Box>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                    </Grid>
                   )}
                 </Grid>
-              )}
-            </>
-          )}
 
-         
-          {/* General KPI Grid - All Other KPIs */}
-          {displayedKPIs.length > 0 && (
-            <>
-              <Typography 
-                variant="h5" 
-                fontWeight={700} 
-                sx={{ 
-                  mt: 5, 
-                  mb: 3,
-                  fontSize: '1.5rem',
-                  letterSpacing: '-0.02em',
-                  color: 'text.primary'
-                }}
-              >
-                All Performance Metrics
-              </Typography>
-              
-              <Grid container spacing={2} sx={{ mb: 4 }}>
-                {displayedKPIs.map(([key, kpi], index) => {
-                  const sourceColor = getSourceColor(kpi.source)
-                  const sourceLabel = getSourceLabel(kpi.source)
-                  
-                  return (
-                    <Grid item xs={12} sm={6} md={3} key={key}>
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: index * 0.05 }}
-                      >
-                        <Card
-                          sx={{
-                            height: '100%',
-                            background: '#FFFFFF',
-                            border: `1px solid ${theme.palette.divider}`,
-                            borderRadius: 2,
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                            transition: 'all 0.2s ease-in-out',
-                            '&:hover': {
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                              transform: 'translateY(-2px)',
-                            }
-                          }}
-                        >
-                          <CardContent sx={{ p: 2.5 }}>
-                            {/* Source Label */}
-                            <Box display="flex" justifyContent="flex-end" mb={1}>
-                              <Chip
-                                label={sourceLabel}
-                                size="small"
-                                sx={{
-                                  bgcolor: alpha(sourceColor, 0.1),
-                                  color: sourceColor,
-                                  fontWeight: 600,
-                                  fontSize: '10px',
-                                  height: 20,
-                                  borderRadius: '4px',
-                                  border: `1px solid ${alpha(sourceColor, 0.2)}`
-                                }}
-                              />
-                            </Box>
-                            
-                            {/* KPI Label */}
-                            <Typography 
-                              variant="caption" 
-                              color="text.secondary"
-                              sx={{ 
-                                fontSize: '0.75rem', 
-                                fontWeight: 500,
-                                display: 'block',
-                                mb: 0.5
-                              }}
-                            >
-                              {kpi.label}
-                            </Typography>
-                            
-                            {/* KPI Value */}
-                            <Typography 
-                              variant="h5" 
-                              fontWeight={700}
-                              sx={{ 
-                                fontSize: '1.5rem',
-                                letterSpacing: '-0.02em',
-                                mb: 1,
-                                color: 'text.primary',
-                              }}
-                            >
-                              {formatValue(kpi)}
-                            </Typography>
-                            
-                            {/* Change Indicator */}
-                            {kpi.change !== undefined && kpi.change !== null && 
-                             !['impressions', 'clicks', 'ctr', 'influencer_reach', 'scrunch_engagement_rate', 'total_interactions', 'cost_per_engagement', 'all_keywords_ranking'].includes(key) &&
-                             kpi.format !== 'custom' && typeof kpi.change === 'number' && (
-                              <Box display="flex" alignItems="center" gap={0.5}>
-                                {kpi.change >= 0 ? (
-                                  <TrendingUpIcon sx={{ fontSize: 14, color: '#34A853' }} />
-                                ) : (
-                                  <TrendingDownIcon sx={{ fontSize: 14, color: '#EA4335' }} />
-                                )}
-                                <Typography 
-                                  variant="caption" 
-                                  sx={{ 
-                                    fontWeight: 600,
-                                    fontSize: '0.75rem',
-                                    color: kpi.change >= 0 ? '#34A853' : '#EA4335'
-                                  }}
-                                >
-                                  {kpi.change >= 0 ? '+' : ''}{kpi.change.toFixed(1)}%
-                                </Typography>
-                              </Box>
-                            )}
-                            {/* Handle custom format KPIs with object change values */}
-                            {kpi.format === 'custom' && kpi.change && typeof kpi.change === 'object' && (
-                              <Box display="flex" flexDirection="column" gap={0.5} mt={0.5}>
-                                {key === 'competitive_benchmarking' && (
-                                  <>
-                                    {kpi.change.brand_visibility !== undefined && kpi.change.brand_visibility !== null && (
-                                      <Box display="flex" alignItems="center" gap={0.5}>
-                                        {kpi.change.brand_visibility >= 0 ? (
-                                          <TrendingUpIcon sx={{ fontSize: 12, color: '#34A853' }} />
-                                        ) : (
-                                          <TrendingDownIcon sx={{ fontSize: 12, color: '#EA4335' }} />
-                                        )}
-                                        <Typography variant="caption" sx={{ fontSize: '0.7rem', color: kpi.change.brand_visibility >= 0 ? '#34A853' : '#EA4335' }}>
-                                          Brand: {kpi.change.brand_visibility >= 0 ? '+' : ''}{kpi.change.brand_visibility.toFixed(1)}%
-                                        </Typography>
-                                      </Box>
-                                    )}
-                                    {kpi.change.competitor_avg_visibility !== undefined && kpi.change.competitor_avg_visibility !== null && (
-                                      <Box display="flex" alignItems="center" gap={0.5}>
-                                        {kpi.change.competitor_avg_visibility >= 0 ? (
-                                          <TrendingUpIcon sx={{ fontSize: 12, color: '#34A853' }} />
-                                        ) : (
-                                          <TrendingDownIcon sx={{ fontSize: 12, color: '#EA4335' }} />
-                                        )}
-                                        <Typography variant="caption" sx={{ fontSize: '0.7rem', color: kpi.change.competitor_avg_visibility >= 0 ? '#34A853' : '#EA4335' }}>
-                                          Competitor avg: {kpi.change.competitor_avg_visibility >= 0 ? '+' : ''}{kpi.change.competitor_avg_visibility.toFixed(1)}%
-                                        </Typography>
-                                      </Box>
-                                    )}
-                                  </>
-                                )}
-                              </Box>
-                            )}
-                            {/* Handle keyword_ranking_change_and_volume with object change values */}
-                            {key === 'keyword_ranking_change_and_volume' && kpi.format === 'custom' && kpi.change && typeof kpi.change === 'object' && (
-                              <Box display="flex" flexDirection="column" gap={0.5} mt={0.5}>
-                                {kpi.change.ranking_change !== undefined && kpi.change.ranking_change !== null && (
-                                  <Box display="flex" alignItems="center" gap={0.5}>
-                                    {kpi.change.ranking_change >= 0 ? (
-                                      <TrendingUpIcon sx={{ fontSize: 12, color: '#34A853' }} />
-                                    ) : (
-                                      <TrendingDownIcon sx={{ fontSize: 12, color: '#EA4335' }} />
-                                    )}
-                                    <Typography variant="caption" sx={{ fontSize: '0.7rem', color: kpi.change.ranking_change >= 0 ? '#34A853' : '#EA4335' }}>
-                                      Ranking change: {kpi.change.ranking_change >= 0 ? '+' : ''}{kpi.change.ranking_change.toFixed(1)}%
-                                    </Typography>
-                                  </Box>
-                                )}
-                                {kpi.change.search_volume !== undefined && kpi.change.search_volume !== null && (
-                                  <Box display="flex" alignItems="center" gap={0.5}>
-                                    {kpi.change.search_volume >= 0 ? (
-                                      <TrendingUpIcon sx={{ fontSize: 12, color: '#34A853' }} />
-                                    ) : (
-                                      <TrendingDownIcon sx={{ fontSize: 12, color: '#EA4335' }} />
-                                    )}
-                                    <Typography variant="caption" sx={{ fontSize: '0.7rem', color: kpi.change.search_volume >= 0 ? '#34A853' : '#EA4335' }}>
-                                      Search volume: {kpi.change.search_volume >= 0 ? '+' : ''}{kpi.change.search_volume.toFixed(1)}%
-                                    </Typography>
-                                  </Box>
-                                )}
-                              </Box>
-                            )}
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                    </Grid>
-                  )
-                })}
-              </Grid>
-            </>
-          )}
-
-          {/* Overall Performance Metrics Section - Large Cards */}
-          {dashboardData?.kpis && (
-            <>
-              <Typography 
-                variant="h5" 
-                fontWeight={700} 
-                sx={{ 
-                  mt: 4, 
-                  mb: 3,
-                  fontSize: '1.5rem',
-                  letterSpacing: '-0.02em',
-                  color: 'text.primary'
-                }}
-              >
-                Overall Performance Metrics
-              </Typography>
-              
-              <Grid container spacing={2.5} sx={{ mb: 4 }}>
-                {/* Top 10 Prompt Percentage */}
-                {dashboardData.kpis.top10_prompt_percentage && (
-                  <Grid item xs={12} md={4}>
+                {/* Top Keywords Ranking - Bar Chart */}
+                {dashboardData.chart_data?.all_keywords_ranking &&
+                  dashboardData.chart_data.all_keywords_ranking.length > 0 && (
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -3630,97 +3431,1962 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                     >
                       <Card
                         sx={{
-                          background: 'linear-gradient(135deg, rgba(0, 122, 255, 0.04) 0%, rgba(88, 86, 214, 0.04) 100%)',
-                          border: `1px solid ${alpha(theme.palette.primary.main, 0.08)}`,
+                          mb: 3,
                           borderRadius: 2,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                          border: `1px solid ${theme.palette.divider}`,
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
                         }}
                       >
                         <CardContent sx={{ p: 3 }}>
-                          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-                            <Typography 
-                              variant="caption" 
-                              color="text.secondary"
-                              sx={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}
-                            >
-                              Top 10 Prompt
-                            </Typography>
-                            <ArticleIcon sx={{ fontSize: 20, color: 'primary.main', opacity: 0.6 }} />
-                          </Box>
-                          <Typography 
-                            variant="h3" 
-                            fontWeight={700}
-                            sx={{ 
-                              fontSize: '36px',
-                              letterSpacing: '-0.02em',
-                              mb: 1,
+                          <Typography
+                            variant="h6"
+                            mb={2}
+                            fontWeight={600}
+                            sx={{
+                              fontSize: "1.125rem",
+                              letterSpacing: "-0.01em",
                             }}
                           >
-                            {formatValue(dashboardData.kpis.top10_prompt_percentage)}
+                            Top Keywords Ranking
                           </Typography>
+                          <ResponsiveContainer width="100%" height={400}>
+                            <BarChart
+                              data={dashboardData.chart_data.all_keywords_ranking
+                                .slice(0, 15)
+                                .map((kw) => ({
+                                  keyword: kw.keyword || "Unknown",
+                                  rank: kw.google_rank || 0,
+                                  searchVolume: kw.search_volume || 0,
+                                }))}
+                              layout="vertical"
+                              margin={{
+                                top: 5,
+                                right: 30,
+                                left: 120,
+                                bottom: 5,
+                              }}
+                            >
+                              <CartesianGrid
+                                strokeDasharray="3 3"
+                                horizontal={false}
+                                stroke="#E4E4E7"
+                              />
+                              <XAxis
+                                type="number"
+                                tick={{ fontSize: 12 }}
+                                stroke="#71717A"
+                                domain={[0, 100]}
+                                reversed
+                                label={{
+                                  value: "Ranking Position (Lower is Better)",
+                                  position: "insideBottom",
+                                  offset: -5,
+                                }}
+                              />
+                              <YAxis
+                                dataKey="keyword"
+                                type="category"
+                                width={110}
+                                stroke="#71717A"
+                                tick={{ fontSize: 10 }}
+                                tickFormatter={(value) => {
+                                  if (!value) return "N/A";
+                                  return value.length > 20
+                                    ? value.substring(0, 20) + "..."
+                                    : value;
+                                }}
+                              />
+                              <Tooltip
+                                contentStyle={{
+                                  borderRadius: "8px",
+                                  border: "none",
+                                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                  backgroundColor: "#FFFFFF",
+                                }}
+                                formatter={(value, name) => {
+                                  if (name === "rank")
+                                    return [`Position ${value}`, "Rank"];
+                                  if (name === "searchVolume")
+                                    return [
+                                      value.toLocaleString(),
+                                      "Search Volume",
+                                    ];
+                                  return [value, name];
+                                }}
+                              />
+                              <Legend />
+                              <Bar
+                                dataKey="rank"
+                                radius={[0, 4, 4, 0]}
+                                fill={theme.palette.primary.main}
+                                name="Rank"
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
                         </CardContent>
                       </Card>
                     </motion.div>
-                  </Grid>
-                )}
-
-                {/* Prompt Search Volume */}
-                {dashboardData.kpis.prompt_search_volume && (
-                  <Grid item xs={12} md={4}>
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, delay: 0.3 }}
-                    >
-                      <Card
-                        sx={{
-                          background: 'linear-gradient(135deg, rgba(52, 199, 89, 0.04) 0%, rgba(90, 200, 250, 0.04) 100%)',
-                          border: `1px solid ${alpha(theme.palette.success.main, 0.08)}`,
-                          borderRadius: 2,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                        }}
-                      >
-                        <CardContent sx={{ p: 3 }}>
-                          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-                            <Typography 
-                              variant="caption" 
-                              color="text.secondary"
-                              sx={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}
-                            >
-                              Prompt Search Volume
-                            </Typography>
-                            <TrendingUpIcon sx={{ fontSize: 20, color: 'success.main', opacity: 0.6 }} />
-                          </Box>
-                          <Typography 
-                            variant="h3" 
-                            fontWeight={700}
-                            color="success.main"
-                            sx={{ 
-                              fontSize: '36px',
-                              letterSpacing: '-0.02em',
-                              mb: 1,
-                            }}
-                          >
-                            {formatValue(dashboardData.kpis.prompt_search_volume)}
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  </Grid>
-                )}
-              </Grid>
-            </>
-          )}
+                  )}
               </Box>
             </>
           )}
+
+          {/* Scrunch AI Section */}
+
+          <Box>
+            {/* Scrunch AI Section - Show independently if Scrunch data is available */}
+            {(() => {
+              // Check if we have Scrunch data from separate endpoint
+              const hasScrunchData =
+                scrunchData?.kpis && Object.keys(scrunchData.kpis).length > 0;
+              const hasScrunchChartData =
+                scrunchData?.chart_data &&
+                (scrunchData.chart_data.top_performing_prompts?.length > 0 ||
+                  scrunchData.chart_data.scrunch_ai_insights?.length > 0);
+
+              // Check if we have Scrunch data from main endpoint (fallback)
+              const scrunchKPIsFromMain = dashboardData?.kpis
+                ? Object.keys(dashboardData.kpis).filter((k) => {
+                    const kpi = dashboardData.kpis[k];
+                    return kpi?.source === "Scrunch";
+                  })
+                : [];
+              const hasScrunchFromMain =
+                scrunchKPIsFromMain.length > 0 ||
+                dashboardData?.chart_data?.top_performing_prompts?.length > 0 ||
+                dashboardData?.chart_data?.scrunch_ai_insights?.length > 0;
+
+              const shouldShow =
+                loadingScrunch ||
+                hasScrunchData ||
+                hasScrunchChartData ||
+                hasScrunchFromMain;
+
+              // Debug logging
+              if (shouldShow) {
+                console.log("Scrunch section should show:", {
+                  loadingScrunch,
+                  hasScrunchData,
+                  hasScrunchChartData,
+                  scrunchKPIsFromMain: scrunchKPIsFromMain.length,
+                  hasScrunchFromMain,
+                });
+              }
+
+              return shouldShow;
+            })() && (
+              <>
+                <Typography
+                  variant="h5"
+                  fontWeight={700}
+                  sx={{
+                    mt: 5,
+                    mb: 3,
+                    fontSize: "1.5rem",
+                    letterSpacing: "-0.02em",
+                    color: "text.primary",
+                  }}
+                >
+                  Scrunch AI
+                  {loadingScrunch && (
+                    <CircularProgress
+                      size={16}
+                      sx={{ ml: 2, verticalAlign: "middle" }}
+                    />
+                  )}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{
+                    mb: 3,
+                    fontSize: "0.875rem",
+                  }}
+                >
+                  AI platform presence and engagement metrics
+                </Typography>
+
+                {loadingScrunch ? (
+                  <Box
+                    display="flex"
+                    justifyContent="center"
+                    alignItems="center"
+                    minHeight="200px"
+                  >
+                    <CircularProgress size={40} />
+                  </Box>
+                ) : (
+                  <>
+                    {/* Use scrunchData if available, otherwise fall back to dashboardData */}
+                    {(() => {
+                      // Prefer scrunchData, but fall back to dashboardData if scrunchData doesn't have KPIs
+                      let scrunchKPIs = {};
+                      let scrunchChartData = {};
+
+                      if (
+                        scrunchData?.kpis &&
+                        Object.keys(scrunchData.kpis).length > 0
+                      ) {
+                        scrunchKPIs = scrunchData.kpis;
+                        scrunchChartData = scrunchData.chart_data || {};
+                        console.log(
+                          "Using Scrunch data from separate endpoint:",
+                          Object.keys(scrunchKPIs).length,
+                          "KPIs"
+                        );
+                      } else if (dashboardData?.kpis) {
+                        // Filter only Scrunch KPIs from dashboardData
+                        const scrunchKeys = Object.keys(
+                          dashboardData.kpis
+                        ).filter((k) => {
+                          const kpi = dashboardData.kpis[k];
+                          return kpi?.source === "Scrunch";
+                        });
+                        if (scrunchKeys.length > 0) {
+                          scrunchKPIs = {};
+                          scrunchKeys.forEach((k) => {
+                            scrunchKPIs[k] = dashboardData.kpis[k];
+                          });
+                          scrunchChartData = dashboardData.chart_data || {};
+                          console.log(
+                            "Using Scrunch data from main endpoint (fallback):",
+                            scrunchKeys.length,
+                            "KPIs"
+                          );
+                        }
+                      }
+
+                      // Only render if we have actual data
+                      const hasData =
+                        Object.keys(scrunchKPIs).length > 0 ||
+                        scrunchChartData?.top_performing_prompts?.length > 0 ||
+                        scrunchChartData?.scrunch_ai_insights?.length > 0;
+
+                      if (!hasData) {
+                        return (
+                          <Box p={3}>
+                            <Typography color="text.secondary">
+                              No Scrunch data available for the selected date
+                              range.
+                            </Typography>
+                          </Box>
+                        );
+                      }
+
+                      return (
+                        <>
+                          {/* Brand Presence Rate Donut */}
+                          {scrunchKPIs?.brand_presence_rate && (
+                            <Box sx={{ mb: 4 }}>
+                              <Typography
+                                variant="h6"
+                                fontWeight={600}
+                                mb={2}
+                                sx={{
+                                  fontSize: "1.125rem",
+                                  letterSpacing: "-0.01em",
+                                }}
+                              >
+                                Brand Presence Metrics
+                              </Typography>
+                              <Grid container spacing={3}>
+                                <Grid item xs={12} sm={6} md={4}>
+                                  <motion.div
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{
+                                      duration: 0.5,
+                                      delay: 0.1,
+                                    }}
+                                  >
+                                    <Card
+                                      sx={{
+                                        height: "100%",
+                                        borderRadius: 2,
+                                        border: `1px solid ${theme.palette.divider}`,
+                                        boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                                      }}
+                                    >
+                                      <CardContent
+                                        sx={{ p: 3, textAlign: "center" }}
+                                      >
+                                        <Typography
+                                          variant="h6"
+                                          mb={2}
+                                          fontWeight={600}
+                                          sx={{
+                                            fontSize: "1rem",
+                                            letterSpacing: "-0.01em",
+                                          }}
+                                        >
+                                          Brand Presence Rate
+                                        </Typography>
+                                        <ResponsiveContainer
+                                          width="100%"
+                                          height={250}
+                                        >
+                                          <PieChart>
+                                            <Pie
+                                              data={[
+                                                {
+                                                  name: "Present",
+                                                  value:
+                                                    scrunchKPIs
+                                                      .brand_presence_rate
+                                                      .value || 0,
+                                                },
+                                                {
+                                                  name: "Absent",
+                                                  value:
+                                                    100 -
+                                                    (scrunchKPIs
+                                                      .brand_presence_rate
+                                                      .value || 0),
+                                                },
+                                              ]}
+                                              cx="50%"
+                                              cy="50%"
+                                              innerRadius={60}
+                                              outerRadius={90}
+                                              startAngle={90}
+                                              endAngle={-270}
+                                              dataKey="value"
+                                              label={({ name, value }) =>
+                                                `${name}: ${value.toFixed(1)}%`
+                                              }
+                                              labelLine={false}
+                                            >
+                                              <Cell
+                                                fill={
+                                                  theme.palette.success.main
+                                                }
+                                              />
+                                              <Cell
+                                                fill={theme.palette.grey[300]}
+                                              />
+                                            </Pie>
+                                            <Tooltip
+                                              contentStyle={{
+                                                borderRadius: "8px",
+                                                border: "none",
+                                                boxShadow:
+                                                  "0 4px 12px rgba(0,0,0,0.1)",
+                                                backgroundColor: "#FFFFFF",
+                                              }}
+                                              formatter={(value, name) => [
+                                                `${value.toFixed(1)}%`,
+                                                name,
+                                              ]}
+                                            />
+                                            <Legend
+                                              wrapperStyle={{
+                                                paddingTop: "10px",
+                                              }}
+                                              formatter={(value) => value}
+                                            />
+                                          </PieChart>
+                                        </ResponsiveContainer>
+                                        <Box mt={2}>
+                                          <Typography
+                                            variant="h4"
+                                            fontWeight={700}
+                                            sx={{ fontSize: "2rem" }}
+                                            color="success.main"
+                                          >
+                                            {(
+                                              dashboardData.kpis
+                                                .brand_presence_rate.value || 0
+                                            ).toFixed(1)}
+                                            %
+                                          </Typography>
+                                          <Typography
+                                            variant="caption"
+                                            color="text.secondary"
+                                            sx={{
+                                              fontSize: "0.75rem",
+                                              display: "block",
+                                              mt: 0.5,
+                                            }}
+                                          >
+                                            Brand Present in Responses
+                                          </Typography>
+                                        </Box>
+                                      </CardContent>
+                                    </Card>
+                                  </motion.div>
+                                </Grid>
+                              </Grid>
+                            </Box>
+                          )}
+
+                          {/* Top Performing Prompts Section */}
+                          {scrunchChartData?.top_performing_prompts &&
+                            scrunchChartData.top_performing_prompts.length >
+                              0 && (
+                              <Box sx={{ mb: 4 }}>
+                                <Typography
+                                  variant="h6"
+                                  fontWeight={600}
+                                  mb={2}
+                                  sx={{
+                                    fontSize: "1.125rem",
+                                    letterSpacing: "-0.01em",
+                                  }}
+                                >
+                                  Top Performing Prompts
+                                </Typography>
+
+                                <motion.div
+                                  initial={{ opacity: 0, y: 20 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ duration: 0.5, delay: 0.3 }}
+                                >
+                                  <Card
+                                    sx={{
+                                      mb: 3,
+                                      borderRadius: 2,
+                                      border: `1px solid ${theme.palette.divider}`,
+                                      boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                                    }}
+                                  >
+                                    <CardContent sx={{ p: 3 }}>
+                                      <Grid container spacing={2}>
+                                        {scrunchChartData.top_performing_prompts.map(
+                                          (prompt) => (
+                                            <Grid
+                                              item
+                                              xs={12}
+                                              sm={6}
+                                              md={4}
+                                              key={prompt.id}
+                                            >
+                                              <Paper
+                                                sx={{
+                                                  p: 2,
+                                                  borderLeft: `3px solid ${theme.palette.primary.main}`,
+                                                  borderRadius: 1.5,
+                                                  transition: "all 0.2s",
+                                                  "&:hover": {
+                                                    transform:
+                                                      "translateX(2px)",
+                                                    boxShadow:
+                                                      "0 2px 8px rgba(0, 0, 0, 0.06)",
+                                                  },
+                                                }}
+                                              >
+                                                <Box
+                                                  display="flex"
+                                                  alignItems="flex-start"
+                                                  justifyContent="space-between"
+                                                  mb={1}
+                                                >
+                                                  <Box
+                                                    display="flex"
+                                                    alignItems="center"
+                                                    gap={1}
+                                                  >
+                                                    <Chip
+                                                      label={`Rank #${prompt.rank}`}
+                                                      size="small"
+                                                      sx={{
+                                                        bgcolor: "primary.main",
+                                                        color: "white",
+                                                        fontWeight: 700,
+                                                        fontSize: "11px",
+                                                        height: 22,
+                                                        minWidth: 50,
+                                                      }}
+                                                    />
+                                                  </Box>
+                                                </Box>
+                                                <Typography
+                                                  variant="body2"
+                                                  fontWeight={600}
+                                                  sx={{
+                                                    fontSize: "0.875rem",
+                                                    lineHeight: 1.4,
+                                                    display: "-webkit-box",
+                                                    WebkitLineClamp: 2,
+                                                    WebkitBoxOrient: "vertical",
+                                                    overflow: "hidden",
+                                                  }}
+                                                >
+                                                  {prompt.text || "N/A"}
+                                                </Typography>
+                                                <Box
+                                                  display="flex"
+                                                  gap={2}
+                                                  mt={1.5}
+                                                >
+                                                  <Typography
+                                                    variant="caption"
+                                                    color="text.secondary"
+                                                    sx={{
+                                                      fontSize: "11px",
+                                                      fontWeight: 500,
+                                                    }}
+                                                  >
+                                                    {prompt.responseCount?.toLocaleString() ||
+                                                      0}{" "}
+                                                    responses
+                                                  </Typography>
+                                                  <Typography
+                                                    variant="caption"
+                                                    color="text.secondary"
+                                                    sx={{
+                                                      fontSize: "11px",
+                                                      fontWeight: 500,
+                                                    }}
+                                                  >
+                                                    {prompt.variants || 0}{" "}
+                                                    variants
+                                                  </Typography>
+                                                </Box>
+                                              </Paper>
+                                            </Grid>
+                                          )
+                                        )}
+                                      </Grid>
+                                    </CardContent>
+                                  </Card>
+                                </motion.div>
+                              </Box>
+                            )}
+
+                          {/* Scrunch AI Insights Section */}
+                          {dashboardData?.chart_data?.scrunch_ai_insights &&
+                            dashboardData.chart_data.scrunch_ai_insights
+                              .length > 0 && (
+                              <Box sx={{ mb: 4 }}>
+                                <Typography
+                                  variant="h6"
+                                  fontWeight={600}
+                                  mb={2}
+                                  sx={{
+                                    fontSize: "1.125rem",
+                                    letterSpacing: "-0.01em",
+                                  }}
+                                >
+                                  Scrunch AI Insights
+                                </Typography>
+
+                                <motion.div
+                                  initial={{ opacity: 0, y: 20 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ duration: 0.5, delay: 0.4 }}
+                                >
+                                  <Card
+                                    sx={{
+                                      mb: 3,
+                                      borderRadius: 2,
+                                      border: `1px solid ${theme.palette.divider}`,
+                                      boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                                    }}
+                                  >
+                                    <CardContent sx={{ p: 0 }}>
+                                      <Box
+                                        p={3}
+                                        borderBottom="1px solid"
+                                        borderColor="divider"
+                                      >
+                                        <Typography
+                                          variant="h6"
+                                          fontWeight={600}
+                                          sx={{
+                                            fontSize: "1.125rem",
+                                            letterSpacing: "-0.01em",
+                                          }}
+                                        >
+                                          Scrunch AI Insights
+                                        </Typography>
+                                      </Box>
+                                      <TableContainer>
+                                        <Table>
+                                          <TableHead>
+                                            <TableRow
+                                              sx={{
+                                                bgcolor: alpha(
+                                                  theme.palette.primary.main,
+                                                  0.04
+                                                ),
+                                              }}
+                                            >
+                                              <TableCell
+                                                sx={{
+                                                  fontWeight: 700,
+                                                  fontSize: "11px",
+                                                  textTransform: "uppercase",
+                                                  letterSpacing: "0.05em",
+                                                  py: 1.5,
+                                                  minWidth: 200,
+                                                }}
+                                              >
+                                                Seed Prompt
+                                              </TableCell>
+                                              <TableCell
+                                                sx={{
+                                                  fontWeight: 700,
+                                                  fontSize: "11px",
+                                                  textTransform: "uppercase",
+                                                  letterSpacing: "0.05em",
+                                                  py: 1.5,
+                                                  minWidth: 120,
+                                                }}
+                                              >
+                                                Data
+                                              </TableCell>
+                                              <TableCell
+                                                sx={{
+                                                  fontWeight: 700,
+                                                  fontSize: "11px",
+                                                  textTransform: "uppercase",
+                                                  letterSpacing: "0.05em",
+                                                  py: 1.5,
+                                                  minWidth: 120,
+                                                }}
+                                              >
+                                                Presence
+                                              </TableCell>
+                                              <TableCell
+                                                sx={{
+                                                  fontWeight: 700,
+                                                  fontSize: "11px",
+                                                  textTransform: "uppercase",
+                                                  letterSpacing: "0.05em",
+                                                  py: 1.5,
+                                                  minWidth: 100,
+                                                }}
+                                              >
+                                                Citations
+                                              </TableCell>
+                                              <TableCell
+                                                sx={{
+                                                  fontWeight: 700,
+                                                  fontSize: "11px",
+                                                  textTransform: "uppercase",
+                                                  letterSpacing: "0.05em",
+                                                  py: 1.5,
+                                                  minWidth: 100,
+                                                }}
+                                              >
+                                                Competitors
+                                              </TableCell>
+                                              <TableCell
+                                                sx={{
+                                                  fontWeight: 700,
+                                                  fontSize: "11px",
+                                                  textTransform: "uppercase",
+                                                  letterSpacing: "0.05em",
+                                                  py: 1.5,
+                                                  minWidth: 100,
+                                                }}
+                                              >
+                                                Stage
+                                              </TableCell>
+                                            </TableRow>
+                                          </TableHead>
+                                          <TableBody>
+                                            {scrunchChartData.scrunch_ai_insights.map(
+                                              (insight) => (
+                                                <TableRow
+                                                  key={
+                                                    insight.id ||
+                                                    insight.seedPrompt
+                                                  }
+                                                  hover
+                                                  sx={{
+                                                    transition: "all 0.2s",
+                                                    "&:hover": {
+                                                      bgcolor: alpha(
+                                                        theme.palette.primary
+                                                          .main,
+                                                        0.02
+                                                      ),
+                                                    },
+                                                  }}
+                                                >
+                                                  <TableCell sx={{ py: 2 }}>
+                                                    <Box>
+                                                      <Typography
+                                                        variant="body2"
+                                                        fontWeight={600}
+                                                        sx={{
+                                                          fontSize: "0.875rem",
+                                                          mb: 0.5,
+                                                          lineHeight: 1.4,
+                                                        }}
+                                                      >
+                                                        {insight.seedPrompt
+                                                          .length > 60
+                                                          ? insight.seedPrompt.substring(
+                                                              0,
+                                                              60
+                                                            ) + "..."
+                                                          : insight.seedPrompt}
+                                                      </Typography>
+                                                      <Typography
+                                                        variant="caption"
+                                                        color="text.secondary"
+                                                        sx={{
+                                                          fontSize: "11px",
+                                                          fontStyle: "italic",
+                                                        }}
+                                                      >
+                                                        {insight.category}
+                                                      </Typography>
+                                                    </Box>
+                                                  </TableCell>
+                                                  <TableCell sx={{ py: 2 }}>
+                                                    <Box>
+                                                      <Typography
+                                                        variant="body2"
+                                                        sx={{
+                                                          fontSize: "0.875rem",
+                                                          fontWeight: 600,
+                                                          mb: 0.25,
+                                                        }}
+                                                      >
+                                                        {insight.variants?.toLocaleString() ||
+                                                          0}{" "}
+                                                        variants
+                                                      </Typography>
+                                                      <Typography
+                                                        variant="caption"
+                                                        color="text.secondary"
+                                                        sx={{
+                                                          fontSize: "0.75rem",
+                                                        }}
+                                                      >
+                                                        {insight.responses?.toLocaleString() ||
+                                                          0}{" "}
+                                                        responses
+                                                      </Typography>
+                                                    </Box>
+                                                  </TableCell>
+                                                  <TableCell sx={{ py: 2 }}>
+                                                    <Box>
+                                                      <Typography
+                                                        variant="body2"
+                                                        fontWeight={700}
+                                                        sx={{
+                                                          fontSize: "0.9375rem",
+                                                          mb: 0.25,
+                                                        }}
+                                                      >
+                                                        {insight.presence}%
+                                                      </Typography>
+                                                      {insight.presenceChange !==
+                                                        undefined && (
+                                                        <Box
+                                                          display="flex"
+                                                          alignItems="center"
+                                                          gap={0.5}
+                                                        >
+                                                          {insight.presenceChange >=
+                                                          0 ? (
+                                                            <TrendingUpIcon
+                                                              sx={{
+                                                                fontSize: 12,
+                                                                color:
+                                                                  "success.main",
+                                                              }}
+                                                            />
+                                                          ) : (
+                                                            <TrendingDownIcon
+                                                              sx={{
+                                                                fontSize: 12,
+                                                                color:
+                                                                  "error.main",
+                                                              }}
+                                                            />
+                                                          )}
+                                                          <Typography
+                                                            variant="caption"
+                                                            sx={{
+                                                              fontSize: "11px",
+                                                              fontWeight: 600,
+                                                              color:
+                                                                insight.presenceChange >=
+                                                                0
+                                                                  ? "success.main"
+                                                                  : "error.main",
+                                                            }}
+                                                          >
+                                                            {insight.presenceChange >=
+                                                            0
+                                                              ? "+"
+                                                              : ""}
+                                                            {insight.presenceChange.toFixed(
+                                                              1
+                                                            )}
+                                                            %
+                                                          </Typography>
+                                                        </Box>
+                                                      )}
+                                                    </Box>
+                                                  </TableCell>
+                                                  <TableCell sx={{ py: 2 }}>
+                                                    <Box>
+                                                      <Typography
+                                                        variant="body2"
+                                                        fontWeight={600}
+                                                        sx={{
+                                                          fontSize: "0.9375rem",
+                                                          mb: 0.25,
+                                                        }}
+                                                      >
+                                                        {insight.citations || 0}
+                                                      </Typography>
+                                                      {insight.citationsChange !==
+                                                        undefined && (
+                                                        <Box
+                                                          display="flex"
+                                                          alignItems="center"
+                                                          gap={0.5}
+                                                        >
+                                                          {insight.citationsChange >=
+                                                          0 ? (
+                                                            <TrendingUpIcon
+                                                              sx={{
+                                                                fontSize: 12,
+                                                                color:
+                                                                  "success.main",
+                                                              }}
+                                                            />
+                                                          ) : (
+                                                            <TrendingDownIcon
+                                                              sx={{
+                                                                fontSize: 12,
+                                                                color:
+                                                                  "error.main",
+                                                              }}
+                                                            />
+                                                          )}
+                                                          <Typography
+                                                            variant="caption"
+                                                            sx={{
+                                                              fontSize: "11px",
+                                                              fontWeight: 600,
+                                                              color:
+                                                                insight.citationsChange >=
+                                                                0
+                                                                  ? "success.main"
+                                                                  : "error.main",
+                                                            }}
+                                                          >
+                                                            {insight.citationsChange >=
+                                                            0
+                                                              ? "+"
+                                                              : ""}
+                                                            {
+                                                              insight.citationsChange
+                                                            }
+                                                          </Typography>
+                                                        </Box>
+                                                      )}
+                                                    </Box>
+                                                  </TableCell>
+                                                  <TableCell sx={{ py: 2 }}>
+                                                    <Box>
+                                                      <Typography
+                                                        variant="body2"
+                                                        fontWeight={600}
+                                                        sx={{
+                                                          fontSize: "0.9375rem",
+                                                          mb: 0.25,
+                                                        }}
+                                                      >
+                                                        {insight.competitors ||
+                                                          0}{" "}
+                                                        active
+                                                      </Typography>
+                                                      {insight.competitorsChange !==
+                                                        undefined && (
+                                                        <Typography
+                                                          variant="caption"
+                                                          color="text.secondary"
+                                                          sx={{
+                                                            fontSize: "11px",
+                                                          }}
+                                                        >
+                                                          {insight.competitorsChange >=
+                                                          0
+                                                            ? "+"
+                                                            : ""}
+                                                          {
+                                                            insight.competitorsChange
+                                                          }
+                                                        </Typography>
+                                                      )}
+                                                    </Box>
+                                                  </TableCell>
+                                                  <TableCell sx={{ py: 2 }}>
+                                                    <Chip
+                                                      label={insight.stage}
+                                                      size="small"
+                                                      sx={{
+                                                        bgcolor:
+                                                          insight.stage ===
+                                                          "Awareness"
+                                                            ? alpha(
+                                                                theme.palette
+                                                                  .info.main,
+                                                                0.1
+                                                              )
+                                                            : insight.stage ===
+                                                              "Evaluation"
+                                                            ? alpha(
+                                                                theme.palette
+                                                                  .warning.main,
+                                                                0.1
+                                                              )
+                                                            : alpha(
+                                                                theme.palette
+                                                                  .success.main,
+                                                                0.1
+                                                              ),
+                                                        color:
+                                                          insight.stage ===
+                                                          "Awareness"
+                                                            ? "info.main"
+                                                            : insight.stage ===
+                                                              "Evaluation"
+                                                            ? "warning.main"
+                                                            : "success.main",
+                                                        fontWeight: 600,
+                                                        fontSize: "11px",
+                                                        height: 24,
+                                                      }}
+                                                    />
+                                                  </TableCell>
+                                                </TableRow>
+                                              )
+                                            )}
+                                          </TableBody>
+                                        </Table>
+                                      </TableContainer>
+                                      {scrunchChartData.scrunch_ai_insights
+                                        .length === 0 && (
+                                        <Box p={4} textAlign="center">
+                                          <Typography
+                                            color="text.secondary"
+                                            sx={{ fontSize: "0.875rem" }}
+                                          >
+                                            No insights available
+                                          </Typography>
+                                        </Box>
+                                      )}
+                                    </CardContent>
+                                  </Card>
+                                </motion.div>
+                              </Box>
+                            )}
+                        </>
+                      );
+                    })()}
+                  </>
+                )}
+
+                {/* New Query API Visualizations - Separate component that fetches its own data */}
+                {selectedBrandId && !isPublic && (
+                  <Box sx={{ mb: 4, mt: 4 }}>
+                    <Typography
+                      variant="h6"
+                      fontWeight={600}
+                      mb={3}
+                      sx={{
+                        fontSize: "1.125rem",
+                        letterSpacing: "-0.01em",
+                      }}
+                    >
+                      Advanced Analytics (Query API)
+                    </Typography>
+                    <ScrunchVisualizations
+                      brandId={selectedBrandId}
+                      startDate={startDate}
+                      endDate={endDate}
+                    />
+                  </Box>
+                )}
+              </>
+            )}
+
+            {/* Brand Analytics Charts Section */}
+            {brandAnalytics && (
+              <>
+                <Typography
+                  variant="h5"
+                  fontWeight={700}
+                  sx={{
+                    mt: 5,
+                    mb: 3,
+                    fontSize: "1.5rem",
+                    letterSpacing: "-0.02em",
+                    color: "text.primary",
+                  }}
+                >
+                  Brand Analytics Insights
+                </Typography>
+
+                <Grid container spacing={2.5} sx={{ mb: 3 }}>
+                  {/* Platform Distribution - Donut Chart */}
+                  {brandAnalytics.platform_distribution &&
+                    Object.keys(brandAnalytics.platform_distribution).length >
+                      0 && (
+                      <Grid item xs={12} md={6}>
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.5, delay: 0.7 }}
+                        >
+                          <Card
+                            sx={{
+                              borderRadius: 2,
+                              border: `1px solid ${theme.palette.divider}`,
+                              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                            }}
+                          >
+                            <CardContent sx={{ p: 3 }}>
+                              <Typography
+                                variant="h6"
+                                mb={3}
+                                fontWeight={600}
+                                sx={{ fontSize: "1rem" }}
+                              >
+                                Platform Distribution
+                              </Typography>
+                              <ResponsiveContainer width="100%" height={300}>
+                                <PieChart>
+                                  <Pie
+                                    data={Object.entries(
+                                      brandAnalytics.platform_distribution
+                                    ).map(([name, value]) => ({
+                                      name,
+                                      value,
+                                    }))}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    label={({ name, percent }) =>
+                                      `${name}: ${(percent * 100).toFixed(0)}%`
+                                    }
+                                    outerRadius={100}
+                                    innerRadius={60}
+                                    fill="#8884d8"
+                                    dataKey="value"
+                                  >
+                                    {Object.entries(
+                                      brandAnalytics.platform_distribution
+                                    ).map((entry, index) => {
+                                      const softColors = [
+                                        "rgba(0, 122, 255, 0.5)", // Blue
+                                        "rgba(52, 199, 89, 0.5)", // Green
+                                        "rgba(255, 149, 0, 0.5)", // Orange
+                                        "rgba(255, 45, 85, 0.5)", // Red
+                                        "rgba(88, 86, 214, 0.5)", // Purple
+                                        "rgba(255, 193, 7, 0.5)", // Yellow
+                                        "rgba(90, 200, 250, 0.5)", // Light Blue
+                                      ];
+                                      return (
+                                        <Cell
+                                          key={`cell-${index}`}
+                                          fill={
+                                            softColors[
+                                              index % softColors.length
+                                            ]
+                                          }
+                                        />
+                                      );
+                                    })}
+                                  </Pie>
+                                  <Tooltip
+                                    contentStyle={{
+                                      borderRadius: "8px",
+                                      border: "none",
+                                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                      backgroundColor: "#FFFFFF",
+                                    }}
+                                  />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      </Grid>
+                    )}
+
+                  {/* Stage Distribution - Pie Chart */}
+                  {brandAnalytics.stage_distribution &&
+                    Object.keys(brandAnalytics.stage_distribution).length >
+                      0 && (
+                      <Grid item xs={12} md={6}>
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.5, delay: 0.8 }}
+                        >
+                          <Card
+                            sx={{
+                              borderRadius: 2,
+                              border: `1px solid ${theme.palette.divider}`,
+                              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                            }}
+                          >
+                            <CardContent sx={{ p: 3 }}>
+                              <Typography
+                                variant="h6"
+                                mb={3}
+                                fontWeight={600}
+                                sx={{ fontSize: "1rem" }}
+                              >
+                                Funnel Stage Distribution
+                              </Typography>
+                              <ResponsiveContainer width="100%" height={300}>
+                                <PieChart>
+                                  <Pie
+                                    data={Object.entries(
+                                      brandAnalytics.stage_distribution
+                                    ).map(([name, value]) => ({
+                                      name,
+                                      value,
+                                    }))}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    label={({ name, percent }) =>
+                                      `${name}: ${(percent * 100).toFixed(0)}%`
+                                    }
+                                    outerRadius={100}
+                                    fill="#8884d8"
+                                    dataKey="value"
+                                  >
+                                    {Object.entries(
+                                      brandAnalytics.stage_distribution
+                                    ).map((entry, index) => {
+                                      const softColors = [
+                                        "rgba(59, 130, 246, 0.6)", // Light blue
+                                        "rgba(20, 184, 166, 0.6)", // Teal/Green
+                                        "rgba(251, 146, 60, 0.6)", // Orange
+                                        "rgba(239, 68, 68, 0.6)", // Orange-red
+                                        "rgba(88, 86, 214, 0.6)", // Purple
+                                      ];
+                                      return (
+                                        <Cell
+                                          key={`cell-${index}`}
+                                          fill={
+                                            softColors[
+                                              index % softColors.length
+                                            ]
+                                          }
+                                        />
+                                      );
+                                    })}
+                                  </Pie>
+                                  <Tooltip
+                                    contentStyle={{
+                                      borderRadius: "8px",
+                                      border: "none",
+                                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                      backgroundColor: "#FFFFFF",
+                                    }}
+                                  />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      </Grid>
+                    )}
+
+                  {/* Brand Sentiment - Donut Chart */}
+                  {brandAnalytics.brand_sentiment &&
+                    Object.keys(brandAnalytics.brand_sentiment).filter(
+                      (key) => brandAnalytics.brand_sentiment[key] > 0
+                    ).length > 0 && (
+                      <Grid item xs={12} md={6}>
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.5, delay: 0.9 }}
+                        >
+                          <Card
+                            sx={{
+                              borderRadius: 2,
+                              border: `1px solid ${theme.palette.divider}`,
+                              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                            }}
+                          >
+                            <CardContent sx={{ p: 3 }}>
+                              <Typography
+                                variant="h6"
+                                mb={3}
+                                fontWeight={600}
+                                sx={{ fontSize: "1rem" }}
+                              >
+                                Brand Sentiment
+                              </Typography>
+                              <ResponsiveContainer width="100%" height={300}>
+                                <PieChart>
+                                  <Pie
+                                    data={Object.entries(
+                                      brandAnalytics.brand_sentiment
+                                    )
+                                      .filter(([name, value]) => value > 0)
+                                      .map(([name, value]) => ({
+                                        name:
+                                          name.charAt(0).toUpperCase() +
+                                          name.slice(1),
+                                        value,
+                                      }))}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    label={({ name, percent }) =>
+                                      `${name}: ${(percent * 100).toFixed(0)}%`
+                                    }
+                                    outerRadius={100}
+                                    innerRadius={60}
+                                    fill="#8884d8"
+                                    dataKey="value"
+                                  >
+                                    {Object.entries(
+                                      brandAnalytics.brand_sentiment
+                                    )
+                                      .filter(([name, value]) => value > 0)
+                                      .map((entry, index) => {
+                                        const colors = {
+                                          positive: "rgba(20, 184, 166, 0.6)", // Teal/Green
+                                          negative: "rgba(239, 68, 68, 0.6)", // Orange-red
+                                          neutral: "rgba(251, 146, 60, 0.6)", // Orange
+                                          null: "rgba(88, 86, 214, 0.6)", // Purple
+                                        };
+                                        const key = entry[0].toLowerCase();
+                                        return (
+                                          <Cell
+                                            key={`cell-${index}`}
+                                            fill={
+                                              colors[key] ||
+                                              "rgba(88, 86, 214, 0.6)"
+                                            }
+                                          />
+                                        );
+                                      })}
+                                  </Pie>
+                                  <Tooltip
+                                    contentStyle={{
+                                      borderRadius: "8px",
+                                      border: "none",
+                                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                      backgroundColor: "#FFFFFF",
+                                    }}
+                                  />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      </Grid>
+                    )}
+                </Grid>
+
+                {/* Top Competitors - List */}
+                {brandAnalytics.top_competitors &&
+                  brandAnalytics.top_competitors.length > 0 && (
+                    <Grid container spacing={2.5} sx={{ mb: 3 }}>
+                      <Grid item xs={12} md={6}>
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.5, delay: 1.1 }}
+                        >
+                          <Card
+                            sx={{
+                              borderRadius: 2,
+                              border: `1px solid ${theme.palette.divider}`,
+                              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                            }}
+                          >
+                            <CardContent sx={{ p: 3 }}>
+                              <Typography
+                                variant="h6"
+                                mb={2}
+                                fontWeight={600}
+                                sx={{ fontSize: "1rem" }}
+                              >
+                                Top Competitors
+                              </Typography>
+                              <Box
+                                display="flex"
+                                flexDirection="column"
+                                gap={1.5}
+                              >
+                                {brandAnalytics.top_competitors
+                                  .slice(0, 10)
+                                  .map((comp, idx) => (
+                                    <Paper
+                                      key={idx}
+                                      sx={{
+                                        p: 1.5,
+                                        borderLeft: `3px solid ${theme.palette.primary.main}`,
+                                        borderRadius: 1.5,
+                                        transition: "all 0.2s",
+                                        "&:hover": {
+                                          transform: "translateX(2px)",
+                                          boxShadow:
+                                            "0 2px 8px rgba(0,0,0,0.05)",
+                                        },
+                                      }}
+                                    >
+                                      <Box
+                                        display="flex"
+                                        justifyContent="space-between"
+                                        alignItems="center"
+                                      >
+                                        <Box
+                                          display="flex"
+                                          alignItems="center"
+                                          gap={1}
+                                        >
+                                          <Chip
+                                            label={`#${idx + 1}`}
+                                            size="small"
+                                            sx={{
+                                              bgcolor:
+                                                theme.palette.primary.main,
+                                              color: "white",
+                                              fontWeight: 700,
+                                              fontSize: "0.7rem",
+                                              height: 20,
+                                              minWidth: 28,
+                                            }}
+                                          />
+                                          <Typography
+                                            variant="body2"
+                                            fontWeight={600}
+                                            sx={{ fontSize: "0.875rem" }}
+                                          >
+                                            {comp.name}
+                                          </Typography>
+                                        </Box>
+                                        <Typography
+                                          variant="body2"
+                                          fontWeight={700}
+                                          color="primary.main"
+                                          sx={{ fontSize: "0.875rem" }}
+                                        >
+                                          {comp.count.toLocaleString()}
+                                        </Typography>
+                                      </Box>
+                                    </Paper>
+                                  ))}
+                              </Box>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      </Grid>
+
+                      {/* Top Topics - Chips List */}
+                      {brandAnalytics.top_topics &&
+                        brandAnalytics.top_topics.length > 0 && (
+                          <Grid item xs={12} md={6}>
+                            <motion.div
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.5, delay: 1.2 }}
+                            >
+                              <Card
+                                sx={{
+                                  borderRadius: 2,
+                                  border: `1px solid ${theme.palette.divider}`,
+                                  boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                                }}
+                              >
+                                <CardContent sx={{ p: 3 }}>
+                                  <Typography
+                                    variant="h6"
+                                    mb={2}
+                                    fontWeight={600}
+                                    sx={{ fontSize: "1rem" }}
+                                  >
+                                    Top Topics
+                                  </Typography>
+                                  <Box display="flex" flexWrap="wrap" gap={1}>
+                                    {brandAnalytics.top_topics
+                                      .slice(0, 20)
+                                      .map((topic, idx) => (
+                                        <Chip
+                                          key={idx}
+                                          label={`${topic.topic} (${topic.count})`}
+                                          size="small"
+                                          sx={{
+                                            bgcolor: alpha(
+                                              theme.palette.primary.main,
+                                              0.08
+                                            ),
+                                            color: "primary.main",
+                                            fontWeight: 600,
+                                            fontSize: "0.75rem",
+                                            height: 28,
+                                            "&:hover": {
+                                              bgcolor: alpha(
+                                                theme.palette.primary.main,
+                                                0.15
+                                              ),
+                                            },
+                                          }}
+                                        />
+                                      ))}
+                                  </Box>
+                                </CardContent>
+                              </Card>
+                            </motion.div>
+                          </Grid>
+                        )}
+                    </Grid>
+                  )}
+              </>
+            )}
+
+            {/* General KPI Grid - All Other KPIs */}
+            {displayedKPIs.length > 0 && (
+              <>
+                <Typography
+                  variant="h5"
+                  fontWeight={700}
+                  sx={{
+                    mt: 5,
+                    mb: 3,
+                    fontSize: "1.5rem",
+                    letterSpacing: "-0.02em",
+                    color: "text.primary",
+                  }}
+                >
+                  All Performance Metrics
+                </Typography>
+
+                <Grid container spacing={2} sx={{ mb: 4 }}>
+                  {displayedKPIs.map(([key, kpi], index) => {
+                    const sourceColor = getSourceColor(kpi.source);
+                    const sourceLabel = getSourceLabel(kpi.source);
+
+                    return (
+                      <Grid item xs={12} sm={6} md={3} key={key}>
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{
+                            duration: 0.3,
+                            delay: index * 0.05,
+                          }}
+                        >
+                          <Card
+                            sx={{
+                              height: "100%",
+                              background: "#FFFFFF",
+                              border: `1px solid ${theme.palette.divider}`,
+                              borderRadius: 2,
+                              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                              transition: "all 0.2s ease-in-out",
+                              "&:hover": {
+                                boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                                transform: "translateY(-2px)",
+                              },
+                            }}
+                          >
+                            <CardContent sx={{ p: 2.5 }}>
+                              {/* Source Label */}
+                              <Box
+                                display="flex"
+                                justifyContent="flex-end"
+                                mb={1}
+                              >
+                                <Chip
+                                  label={sourceLabel}
+                                  size="small"
+                                  sx={{
+                                    bgcolor: alpha(sourceColor, 0.1),
+                                    color: sourceColor,
+                                    fontWeight: 600,
+                                    fontSize: "10px",
+                                    height: 20,
+                                    borderRadius: "4px",
+                                    border: `1px solid ${alpha(
+                                      sourceColor,
+                                      0.2
+                                    )}`,
+                                  }}
+                                />
+                              </Box>
+
+                              {/* KPI Label */}
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{
+                                  fontSize: "0.75rem",
+                                  fontWeight: 500,
+                                  display: "block",
+                                  mb: 0.5,
+                                }}
+                              >
+                                {kpi.label}
+                              </Typography>
+
+                              {/* KPI Value */}
+                              <Typography
+                                variant="h5"
+                                fontWeight={700}
+                                sx={{
+                                  fontSize: "1.5rem",
+                                  letterSpacing: "-0.02em",
+                                  mb: 1,
+                                  color: "text.primary",
+                                }}
+                              >
+                                {formatValue(kpi)}
+                              </Typography>
+
+                              {/* Change Indicator */}
+                              {kpi.change !== undefined &&
+                                kpi.change !== null &&
+                                ![
+                                  "impressions",
+                                  "clicks",
+                                  "ctr",
+                                  "influencer_reach",
+                                  "scrunch_engagement_rate",
+                                  "total_interactions",
+                                  "cost_per_engagement",
+                                  "all_keywords_ranking",
+                                ].includes(key) &&
+                                kpi.format !== "custom" &&
+                                typeof kpi.change === "number" && (
+                                  <Box
+                                    display="flex"
+                                    alignItems="center"
+                                    gap={0.5}
+                                  >
+                                    {kpi.change >= 0 ? (
+                                      <TrendingUpIcon
+                                        sx={{
+                                          fontSize: 14,
+                                          color: "#34A853",
+                                        }}
+                                      />
+                                    ) : (
+                                      <TrendingDownIcon
+                                        sx={{
+                                          fontSize: 14,
+                                          color: "#EA4335",
+                                        }}
+                                      />
+                                    )}
+                                    <Typography
+                                      variant="caption"
+                                      sx={{
+                                        fontWeight: 600,
+                                        fontSize: "0.75rem",
+                                        color:
+                                          kpi.change >= 0
+                                            ? "#34A853"
+                                            : "#EA4335",
+                                      }}
+                                    >
+                                      {kpi.change >= 0 ? "+" : ""}
+                                      {kpi.change.toFixed(1)}%
+                                    </Typography>
+                                  </Box>
+                                )}
+                              {/* Handle custom format KPIs with object change values */}
+                              {kpi.format === "custom" &&
+                                kpi.change &&
+                                typeof kpi.change === "object" && (
+                                  <Box
+                                    display="flex"
+                                    flexDirection="column"
+                                    gap={0.5}
+                                    mt={0.5}
+                                  >
+                                    {key === "competitive_benchmarking" && (
+                                      <>
+                                        {kpi.change.brand_visibility !==
+                                          undefined &&
+                                          kpi.change.brand_visibility !==
+                                            null && (
+                                            <Box
+                                              display="flex"
+                                              alignItems="center"
+                                              gap={0.5}
+                                            >
+                                              {kpi.change.brand_visibility >=
+                                              0 ? (
+                                                <TrendingUpIcon
+                                                  sx={{
+                                                    fontSize: 12,
+                                                    color: "#34A853",
+                                                  }}
+                                                />
+                                              ) : (
+                                                <TrendingDownIcon
+                                                  sx={{
+                                                    fontSize: 12,
+                                                    color: "#EA4335",
+                                                  }}
+                                                />
+                                              )}
+                                              <Typography
+                                                variant="caption"
+                                                sx={{
+                                                  fontSize: "0.7rem",
+                                                  color:
+                                                    kpi.change
+                                                      .brand_visibility >= 0
+                                                      ? "#34A853"
+                                                      : "#EA4335",
+                                                }}
+                                              >
+                                                Brand:{" "}
+                                                {kpi.change.brand_visibility >=
+                                                0
+                                                  ? "+"
+                                                  : ""}
+                                                {kpi.change.brand_visibility.toFixed(
+                                                  1
+                                                )}
+                                                %
+                                              </Typography>
+                                            </Box>
+                                          )}
+                                        {kpi.change
+                                          .competitor_avg_visibility !==
+                                          undefined &&
+                                          kpi.change
+                                            .competitor_avg_visibility !==
+                                            null && (
+                                            <Box
+                                              display="flex"
+                                              alignItems="center"
+                                              gap={0.5}
+                                            >
+                                              {kpi.change
+                                                .competitor_avg_visibility >=
+                                              0 ? (
+                                                <TrendingUpIcon
+                                                  sx={{
+                                                    fontSize: 12,
+                                                    color: "#34A853",
+                                                  }}
+                                                />
+                                              ) : (
+                                                <TrendingDownIcon
+                                                  sx={{
+                                                    fontSize: 12,
+                                                    color: "#EA4335",
+                                                  }}
+                                                />
+                                              )}
+                                              <Typography
+                                                variant="caption"
+                                                sx={{
+                                                  fontSize: "0.7rem",
+                                                  color:
+                                                    kpi.change
+                                                      .competitor_avg_visibility >=
+                                                    0
+                                                      ? "#34A853"
+                                                      : "#EA4335",
+                                                }}
+                                              >
+                                                Competitor avg:{" "}
+                                                {kpi.change
+                                                  .competitor_avg_visibility >=
+                                                0
+                                                  ? "+"
+                                                  : ""}
+                                                {kpi.change.competitor_avg_visibility.toFixed(
+                                                  1
+                                                )}
+                                                %
+                                              </Typography>
+                                            </Box>
+                                          )}
+                                      </>
+                                    )}
+                                  </Box>
+                                )}
+                              {/* Handle keyword_ranking_change_and_volume with object change values */}
+                              {key === "keyword_ranking_change_and_volume" &&
+                                kpi.format === "custom" &&
+                                kpi.change &&
+                                typeof kpi.change === "object" && (
+                                  <Box
+                                    display="flex"
+                                    flexDirection="column"
+                                    gap={0.5}
+                                    mt={0.5}
+                                  >
+                                    {kpi.change.ranking_change !== undefined &&
+                                      kpi.change.ranking_change !== null && (
+                                        <Box
+                                          display="flex"
+                                          alignItems="center"
+                                          gap={0.5}
+                                        >
+                                          {kpi.change.ranking_change >= 0 ? (
+                                            <TrendingUpIcon
+                                              sx={{
+                                                fontSize: 12,
+                                                color: "#34A853",
+                                              }}
+                                            />
+                                          ) : (
+                                            <TrendingDownIcon
+                                              sx={{
+                                                fontSize: 12,
+                                                color: "#EA4335",
+                                              }}
+                                            />
+                                          )}
+                                          <Typography
+                                            variant="caption"
+                                            sx={{
+                                              fontSize: "0.7rem",
+                                              color:
+                                                kpi.change.ranking_change >= 0
+                                                  ? "#34A853"
+                                                  : "#EA4335",
+                                            }}
+                                          >
+                                            Ranking change:{" "}
+                                            {kpi.change.ranking_change >= 0
+                                              ? "+"
+                                              : ""}
+                                            {kpi.change.ranking_change.toFixed(
+                                              1
+                                            )}
+                                            %
+                                          </Typography>
+                                        </Box>
+                                      )}
+                                    {kpi.change.search_volume !== undefined &&
+                                      kpi.change.search_volume !== null && (
+                                        <Box
+                                          display="flex"
+                                          alignItems="center"
+                                          gap={0.5}
+                                        >
+                                          {kpi.change.search_volume >= 0 ? (
+                                            <TrendingUpIcon
+                                              sx={{
+                                                fontSize: 12,
+                                                color: "#34A853",
+                                              }}
+                                            />
+                                          ) : (
+                                            <TrendingDownIcon
+                                              sx={{
+                                                fontSize: 12,
+                                                color: "#EA4335",
+                                              }}
+                                            />
+                                          )}
+                                          <Typography
+                                            variant="caption"
+                                            sx={{
+                                              fontSize: "0.7rem",
+                                              color:
+                                                kpi.change.search_volume >= 0
+                                                  ? "#34A853"
+                                                  : "#EA4335",
+                                            }}
+                                          >
+                                            Search volume:{" "}
+                                            {kpi.change.search_volume >= 0
+                                              ? "+"
+                                              : ""}
+                                            {kpi.change.search_volume.toFixed(
+                                              1
+                                            )}
+                                            %
+                                          </Typography>
+                                        </Box>
+                                      )}
+                                  </Box>
+                                )}
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
+              </>
+            )}
+
+            {/* Overall Performance Metrics Section - Large Cards */}
+            {dashboardData?.kpis && (
+              <>
+                <Typography
+                  variant="h5"
+                  fontWeight={700}
+                  sx={{
+                    mt: 4,
+                    mb: 3,
+                    fontSize: "1.5rem",
+                    letterSpacing: "-0.02em",
+                    color: "text.primary",
+                  }}
+                >
+                  Overall Performance Metrics
+                </Typography>
+
+                <Grid container spacing={2.5} sx={{ mb: 4 }}>
+                  {/* Top 10 Prompt Percentage */}
+                  {dashboardData.kpis.top10_prompt_percentage && (
+                    <Grid item xs={12} md={4}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.2 }}
+                      >
+                        <Card
+                          sx={{
+                            background:
+                              "linear-gradient(135deg, rgba(0, 122, 255, 0.04) 0%, rgba(88, 86, 214, 0.04) 100%)",
+                            border: `1px solid ${alpha(
+                              theme.palette.primary.main,
+                              0.08
+                            )}`,
+                            borderRadius: 2,
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                          }}
+                        >
+                          <CardContent sx={{ p: 3 }}>
+                            <Box
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="space-between"
+                              mb={2}
+                            >
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.05em",
+                                }}
+                              >
+                                Top 10 Prompt
+                              </Typography>
+                              <ArticleIcon
+                                sx={{
+                                  fontSize: 20,
+                                  color: "primary.main",
+                                  opacity: 0.6,
+                                }}
+                              />
+                            </Box>
+                            <Typography
+                              variant="h3"
+                              fontWeight={700}
+                              sx={{
+                                fontSize: "36px",
+                                letterSpacing: "-0.02em",
+                                mb: 1,
+                              }}
+                            >
+                              {formatValue(
+                                dashboardData.kpis.top10_prompt_percentage
+                              )}
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    </Grid>
+                  )}
+
+                  {/* Prompt Search Volume */}
+                  {dashboardData.kpis.prompt_search_volume && (
+                    <Grid item xs={12} md={4}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.3 }}
+                      >
+                        <Card
+                          sx={{
+                            background:
+                              "linear-gradient(135deg, rgba(52, 199, 89, 0.04) 0%, rgba(90, 200, 250, 0.04) 100%)",
+                            border: `1px solid ${alpha(
+                              theme.palette.success.main,
+                              0.08
+                            )}`,
+                            borderRadius: 2,
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                          }}
+                        >
+                          <CardContent sx={{ p: 3 }}>
+                            <Box
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="space-between"
+                              mb={2}
+                            >
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.05em",
+                                }}
+                              >
+                                Prompt Search Volume
+                              </Typography>
+                              <TrendingUpIcon
+                                sx={{
+                                  fontSize: 20,
+                                  color: "success.main",
+                                  opacity: 0.6,
+                                }}
+                              />
+                            </Box>
+                            <Typography
+                              variant="h3"
+                              fontWeight={700}
+                              color="success.main"
+                              sx={{
+                                fontSize: "36px",
+                                letterSpacing: "-0.02em",
+                                mb: 1,
+                              }}
+                            >
+                              {formatValue(
+                                dashboardData.kpis.prompt_search_volume
+                              )}
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    </Grid>
+                  )}
+                </Grid>
+              </>
+            )}
+          </Box>
         </>
       ) : !loading && selectedBrandId ? (
         <Alert severity="info" sx={{ borderRadius: 2 }}>
-          No data available for this brand. Please ensure the brand has data sources configured:
+          No data available for this brand. Please ensure the brand has data
+          sources configured:
           <Box component="ul" sx={{ mt: 1, mb: 0, pl: 2 }}>
             <li>GA4: Configure GA4 property ID in brand settings</li>
-            <li>Agency Analytics: Sync campaigns and link them to this brand</li>
+            <li>
+              Agency Analytics: Sync campaigns and link them to this brand
+            </li>
             <li>Scrunch: Ensure brand is synced from Scrunch API</li>
           </Box>
         </Alert>
@@ -3736,11 +5402,15 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
         maxWidth="md"
         fullWidth
         PaperProps={{
-          sx: { borderRadius: 2 }
+          sx: { borderRadius: 2 },
         }}
       >
         <DialogTitle>
-          <Box display="flex" justifyContent="space-between" alignItems="center">
+          <Box
+            display="flex"
+            justifyContent="space-between"
+            alignItems="center"
+          >
             <Typography variant="h6" fontWeight={600}>
               Select KPIs to Display
             </Typography>
@@ -3748,68 +5418,84 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
               <Button size="small" onClick={handleSelectAll} variant="outlined">
                 Select All
               </Button>
-              <Button size="small" onClick={handleDeselectAll} variant="outlined">
+              <Button
+                size="small"
+                onClick={handleDeselectAll}
+                variant="outlined"
+              >
                 Deselect All
               </Button>
             </Box>
           </Box>
         </DialogTitle>
-        <DialogContent dividers sx={{ maxHeight: 500, overflow: 'auto' }}>
+        <DialogContent dividers sx={{ maxHeight: 500, overflow: "auto" }}>
           <Box>
             {/* Group KPIs by source */}
-            {['GA4', 'AgencyAnalytics', 'Scrunch'].map((source) => {
-              const sourceKPIs = KPI_ORDER.filter(key => {
-                const metadata = KPI_METADATA[key]
-                return metadata && metadata.source === source
-              })
-              
+            {["GA4", "AgencyAnalytics", "Scrunch"].map((source) => {
+              const sourceKPIs = KPI_ORDER.filter((key) => {
+                const metadata = KPI_METADATA[key];
+                return metadata && metadata.source === source;
+              });
+
               return (
                 <Box key={source} mb={3}>
-                  <Typography 
-                    variant="subtitle1" 
-                    fontWeight={600} 
+                  <Typography
+                    variant="subtitle1"
+                    fontWeight={600}
                     mb={1.5}
-                    sx={{ 
+                    sx={{
                       color: getSourceColor(source),
-                      textTransform: 'uppercase',
-                      fontSize: '0.75rem',
-                      letterSpacing: '0.05em'
+                      textTransform: "uppercase",
+                      fontSize: "0.75rem",
+                      letterSpacing: "0.05em",
                     }}
                   >
-                    {source} ({sourceKPIs.filter(k => tempSelectedKPIs.has(k)).length} / {sourceKPIs.length})
+                    {source} (
+                    {sourceKPIs.filter((k) => tempSelectedKPIs.has(k)).length} /{" "}
+                    {sourceKPIs.length})
                   </Typography>
                   <Box display="flex" flexDirection="column" gap={1}>
                     {sourceKPIs.map((key) => {
-                      const metadata = KPI_METADATA[key]
-                      const kpi = dashboardData?.kpis?.[key]
-                      const isAvailable = !!kpi
-                      
+                      const metadata = KPI_METADATA[key];
+                      const kpi = dashboardData?.kpis?.[key];
+                      const isAvailable = !!kpi;
+
                       return (
                         <FormControlLabel
                           key={key}
                           control={
                             <Checkbox
                               checked={tempSelectedKPIs.has(key)}
-                              onChange={(e) => handleKPIChange(key, e.target.checked)}
+                              onChange={(e) =>
+                                handleKPIChange(key, e.target.checked)
+                              }
                               disabled={!isAvailable}
                               sx={{
                                 color: getSourceColor(source),
-                                '&.Mui-checked': {
+                                "&.Mui-checked": {
                                   color: getSourceColor(source),
                                 },
-                                '&.Mui-disabled': {
+                                "&.Mui-disabled": {
                                   color: theme.palette.grey[400],
                                 },
                               }}
                             />
                           }
                           label={
-                            <Box display="flex" alignItems="center" justifyContent="space-between" width="100%">
+                            <Box
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="space-between"
+                              width="100%"
+                            >
                               <Box>
                                 <Typography variant="body2" fontWeight={600}>
                                   {metadata.label}
                                 </Typography>
-                                <Typography variant="caption" color="text.secondary">
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                >
                                   {metadata.source}
                                 </Typography>
                               </Box>
@@ -3819,7 +5505,7 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                                   size="small"
                                   sx={{
                                     height: 20,
-                                    fontSize: '0.7rem',
+                                    fontSize: "0.7rem",
                                     bgcolor: theme.palette.grey[100],
                                     color: theme.palette.grey[600],
                                   }}
@@ -3827,39 +5513,41 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                               )}
                             </Box>
                           }
-                          sx={{ 
-                            mb: 0.5, 
-                            width: '100%',
-                            opacity: isAvailable ? 1 : 0.6
+                          sx={{
+                            mb: 0.5,
+                            width: "100%",
+                            opacity: isAvailable ? 1 : 0.6,
                           }}
                         />
-                      )
+                      );
                     })}
                   </Box>
                 </Box>
-              )
+              );
             })}
           </Box>
         </DialogContent>
-        <DialogActions sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
-          <Button 
+        <DialogActions
+          sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}` }}
+        >
+          <Button
             onClick={() => {
-              setTempSelectedKPIs(new Set(selectedKPIs))
-              setShowKPISelector(false)
+              setTempSelectedKPIs(new Set(selectedKPIs));
+              setShowKPISelector(false);
             }}
             variant="outlined"
           >
             Cancel
           </Button>
-          <Button 
-            onClick={handleSaveKPISelection} 
+          <Button
+            onClick={handleSaveKPISelection}
             variant="contained"
             disabled={tempSelectedKPIs.size === 0}
             sx={{
               bgcolor: theme.palette.primary.main,
-              '&:hover': {
+              "&:hover": {
                 bgcolor: theme.palette.primary.dark,
-              }
+              },
             }}
           >
             Save Changes
@@ -3885,12 +5573,13 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" mb={2}>
-            Share this URL with clients to give them access to the public reporting dashboard for this brand.
+            Share this URL with clients to give them access to the public
+            reporting dashboard for this brand.
           </Typography>
           <Box
             sx={{
-              display: 'flex',
-              alignItems: 'center',
+              display: "flex",
+              alignItems: "center",
               gap: 1,
               p: 1.5,
               borderRadius: 2,
@@ -3898,15 +5587,15 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
               border: `1px solid ${theme.palette.divider}`,
             }}
           >
-            <LinkIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
+            <LinkIcon sx={{ color: "text.secondary", fontSize: 20 }} />
             <Typography
               variant="body2"
               sx={{
                 flex: 1,
-                fontFamily: 'monospace',
-                fontSize: '0.875rem',
-                wordBreak: 'break-all',
-                color: 'text.primary',
+                fontFamily: "monospace",
+                fontSize: "0.875rem",
+                wordBreak: "break-all",
+                color: "text.primary",
               }}
             >
               {shareableUrl}
@@ -3915,21 +5604,25 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
               onClick={handleCopyUrl}
               size="small"
               sx={{
-                color: copied ? theme.palette.success.main : 'text.secondary',
-                '&:hover': {
+                color: copied ? theme.palette.success.main : "text.secondary",
+                "&:hover": {
                   bgcolor: alpha(theme.palette.primary.main, 0.1),
                 },
               }}
-              title={copied ? 'Copied!' : 'Copy URL'}
+              title={copied ? "Copied!" : "Copy URL"}
             >
-              {copied ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
+              {copied ? (
+                <CheckIcon fontSize="small" />
+              ) : (
+                <ContentCopyIcon fontSize="small" />
+              )}
             </IconButton>
           </Box>
           {copied && (
             <Typography
               variant="caption"
               color="success.main"
-              sx={{ mt: 1, display: 'block', fontWeight: 600 }}
+              sx={{ mt: 1, display: "block", fontWeight: 600 }}
             >
               URL copied to clipboard!
             </Typography>
@@ -3939,14 +5632,14 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
           <Button
             onClick={() => setShowShareDialog(false)}
             variant="outlined"
-            sx={{ borderRadius: 2, textTransform: 'none' }}
+            sx={{ borderRadius: 2, textTransform: "none" }}
           >
             Close
           </Button>
         </DialogActions>
       </Dialog>
     </Box>
-  )
+  );
 }
 
-export default ReportingDashboard
+export default ReportingDashboard;

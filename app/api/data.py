@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Query
-from typing import Optional
+from fastapi import APIRouter, Query, HTTPException
+from typing import Optional, List
 import logging
 from datetime import datetime, timedelta
 from app.services.supabase_service import SupabaseService
 from app.services.ga4_client import GA4APIClient
 from app.services.agency_analytics_client import AgencyAnalyticsClient
+from app.services.scrunch_client import ScrunchAPIClient
 from app.core.exceptions import NotFoundException, handle_exception
 from app.core.error_utils import handle_api_errors
 
@@ -2149,4 +2150,389 @@ async def get_reporting_dashboard_by_slug(
         error_trace = traceback.format_exc()
         logger.error(f"Error fetching reporting dashboard by slug '{slug}': {str(e)}\n{error_trace}")
         raise HTTPException(status_code=500, detail=f"Error fetching reporting dashboard: {str(e)}")
+
+@router.get("/data/reporting-dashboard/{brand_id}/scrunch")
+@handle_api_errors(context="fetching Scrunch dashboard data")
+async def get_scrunch_dashboard_data(
+    brand_id: int,
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)")
+):
+    """Get Scrunch AI KPIs and chart data for reporting dashboard (separate endpoint for parallel loading)"""
+    try:
+        supabase = SupabaseService()
+        
+        # Get brand info
+        brand_result = supabase.client.table("brands").select("*").eq("id", brand_id).execute()
+        brands = brand_result.data if hasattr(brand_result, 'data') else []
+        
+        if not brands:
+            raise HTTPException(status_code=404, detail="Brand not found")
+        
+        brand = brands[0]
+        
+        # Set default date range
+        if not start_date:
+            start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+        if not end_date:
+            end_date = datetime.now().strftime("%Y-%m-%d")
+        
+        # Validate date range
+        try:
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+            
+            if start_dt > end_dt:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Invalid date range: start_date ({start_date}) must be before or equal to end_date ({end_date})"
+                )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid date format. Use YYYY-MM-DD format. Error: {str(e)}"
+            )
+        
+        # Import the Scrunch calculation logic from the main endpoint
+        # This is a simplified version that only returns Scrunch data
+        scrunch_kpis = {}
+        scrunch_chart_data = {
+            "top_performing_prompts": [],
+            "scrunch_ai_insights": []
+        }
+        
+        try:
+            # Calculate previous period for change comparison
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+            period_duration = (end_dt - start_dt).days + 1
+            prev_end = (start_dt - timedelta(days=1)).strftime("%Y-%m-%d")
+            prev_start = (start_dt - timedelta(days=period_duration)).strftime("%Y-%m-%d")
+            
+            # Get responses for this brand filtered by date range (current period)
+            responses_query = supabase.client.table("responses").select("*").eq("brand_id", brand_id)
+            responses_query = responses_query.gte("created_at", f"{start_date}T00:00:00Z").lte("created_at", f"{end_date}T23:59:59Z")
+            responses_result = responses_query.execute()
+            responses = responses_result.data if hasattr(responses_result, 'data') else []
+            
+            # Get responses for previous period
+            prev_responses_query = supabase.client.table("responses").select("*").eq("brand_id", brand_id)
+            prev_responses_query = prev_responses_query.gte("created_at", f"{prev_start}T00:00:00Z").lte("created_at", f"{prev_end}T23:59:59Z")
+            prev_responses_result = prev_responses_query.execute()
+            prev_responses = prev_responses_result.data if hasattr(prev_responses_result, 'data') else []
+            
+            # Get prompts for this brand
+            prompts_query = supabase.client.table("prompts").select("*").eq("brand_id", brand_id)
+            prompts_result = prompts_query.execute()
+            prompts = prompts_result.data if hasattr(prompts_result, 'data') else []
+            
+            # Check if brand has any Scrunch data
+            has_any_scrunch_data = len(responses) > 0 or len(prompts) > 0
+            if not has_any_scrunch_data:
+                any_responses_query = supabase.client.table("responses").select("id").eq("brand_id", brand_id).limit(1)
+                any_responses_result = any_responses_query.execute()
+                any_responses = any_responses_result.data if hasattr(any_responses_result, 'data') else []
+                any_prompts_query = supabase.client.table("prompts").select("id").eq("brand_id", brand_id).limit(1)
+                any_prompts_result = any_prompts_query.execute()
+                any_prompts = any_prompts_result.data if hasattr(any_prompts_result, 'data') else []
+                if len(any_responses) > 0 or len(any_prompts) > 0:
+                    has_any_scrunch_data = True
+            
+            # Import the calculate_scrunch_metrics function logic
+            # (We'll use the same logic from the main endpoint)
+            def calculate_scrunch_metrics(responses_list, prompts_list=None):
+                if not responses_list:
+                    return {
+                        "total_citations": 0,
+                        "brand_present_count": 0,
+                        "brand_presence_rate": 0,
+                        "sentiment_score": 0,
+                        "prompt_search_volume": 0,
+                        "top10_prompt_percentage": 0,
+                        "competitive_benchmarking": {
+                            "brand_visibility_percent": 0,
+                            "competitor_avg_visibility_percent": 0
+                        },
+                    }
+                
+                total_citations = 0
+                brand_present_count = 0
+                sentiment_scores = {"positive": 0, "neutral": 0, "negative": 0}
+                prompt_platform_map = {}
+                prompt_brand_present = set()
+                competitor_visibility_count = {}
+                total_responses_with_competitors = 0
+                citations_by_prompt = {}
+                prompt_counts = {}
+                
+                for r in responses_list:
+                    prompt_id = r.get("prompt_id")
+                    if prompt_id:
+                        prompt_counts[prompt_id] = prompt_counts.get(prompt_id, 0) + 1
+                        platform = r.get("platform")
+                        if platform:
+                            if prompt_id not in prompt_platform_map:
+                                prompt_platform_map[prompt_id] = set()
+                            prompt_platform_map[prompt_id].add(platform)
+                        if r.get("brand_present"):
+                            prompt_brand_present.add(prompt_id)
+                
+                sorted_prompts = sorted(prompt_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+                top10_count = sum(count for _, count in sorted_prompts)
+                top10_prompt_percentage = (top10_count / len(responses_list) * 100) if responses_list else 0
+                
+                for r in responses_list:
+                    citations = r.get("citations")
+                    citation_count = 0
+                    if citations:
+                        if isinstance(citations, list):
+                            citation_count = len(citations)
+                        elif isinstance(citations, str):
+                            try:
+                                import json
+                                parsed = json.loads(citations)
+                                if isinstance(parsed, list):
+                                    citation_count = len(parsed)
+                            except:
+                                pass
+                    
+                    total_citations += citation_count
+                    prompt_id = r.get("prompt_id")
+                    if prompt_id:
+                        if prompt_id not in citations_by_prompt:
+                            citations_by_prompt[prompt_id] = 0
+                        citations_by_prompt[prompt_id] += citation_count
+                    
+                    if r.get("brand_present"):
+                        brand_present_count += 1
+                    
+                    competitors_present = r.get("competitors_present", [])
+                    if isinstance(competitors_present, list) and len(competitors_present) > 0:
+                        total_responses_with_competitors += 1
+                        for comp in competitors_present:
+                            if comp:
+                                competitor_visibility_count[comp] = competitor_visibility_count.get(comp, 0) + 1
+                    
+                    sentiment = r.get("brand_sentiment")
+                    if sentiment:
+                        sentiment_lower = sentiment.lower()
+                        if "positive" in sentiment_lower:
+                            sentiment_scores["positive"] += 1
+                        elif "negative" in sentiment_lower:
+                            sentiment_scores["negative"] += 1
+                        else:
+                            sentiment_scores["neutral"] += 1
+                
+                brand_presence_rate = (brand_present_count / len(responses_list) * 100) if responses_list else 0
+                
+                total_sentiment_responses = sum(sentiment_scores.values())
+                if total_sentiment_responses > 0:
+                    sentiment_score = (
+                        (sentiment_scores["positive"] * 1.0 + 
+                         sentiment_scores["neutral"] * 0.0 + 
+                         sentiment_scores["negative"] * -1.0) / total_sentiment_responses * 100
+                    )
+                else:
+                    sentiment_score = 0
+                
+                brand_visibility_percent = brand_presence_rate
+                competitor_avg_visibility_percent = 0
+                if total_responses_with_competitors > 0:
+                    unique_competitors = len(competitor_visibility_count)
+                    if unique_competitors > 0:
+                        total_competitor_appearances = sum(competitor_visibility_count.values())
+                        competitor_avg_visibility_percent = (total_competitor_appearances / total_responses_with_competitors) * 100
+                
+                return {
+                    "total_citations": total_citations,
+                    "brand_present_count": brand_present_count,
+                    "brand_presence_rate": brand_presence_rate,
+                    "sentiment_score": sentiment_score,
+                    "prompt_search_volume": len(responses_list),
+                    "top10_prompt_percentage": top10_prompt_percentage,
+                    "competitive_benchmarking": {
+                        "brand_visibility_percent": brand_visibility_percent,
+                        "competitor_avg_visibility_percent": competitor_avg_visibility_percent
+                    },
+                }
+            
+            if has_any_scrunch_data:
+                current_metrics = calculate_scrunch_metrics(responses, prompts)
+                prev_metrics = calculate_scrunch_metrics(prev_responses, prompts)
+                
+                def calculate_change(current, previous):
+                    if current == 0 and previous == 0:
+                        return 0.0
+                    if previous == 0 and current > 0:
+                        return 100.0
+                    if current == 0 and previous > 0:
+                        return -100.0
+                    if previous > 0:
+                        return ((current - previous) / previous) * 100
+                    return 0.0
+                
+                total_citations_change = calculate_change(current_metrics["total_citations"], prev_metrics["total_citations"])
+                brand_presence_rate_change = calculate_change(current_metrics["brand_presence_rate"], prev_metrics["brand_presence_rate"])
+                sentiment_score_change = calculate_change(current_metrics["sentiment_score"], prev_metrics["sentiment_score"])
+                top10_prompt_change = calculate_change(current_metrics["top10_prompt_percentage"], prev_metrics["top10_prompt_percentage"])
+                prompt_search_volume_change = calculate_change(current_metrics["prompt_search_volume"], prev_metrics["prompt_search_volume"])
+                
+                competitive_current = current_metrics.get("competitive_benchmarking", {})
+                competitive_prev = prev_metrics.get("competitive_benchmarking", {})
+                brand_visibility_change = calculate_change(
+                    competitive_current.get("brand_visibility_percent", 0),
+                    competitive_prev.get("brand_visibility_percent", 0)
+                )
+                competitor_avg_change = calculate_change(
+                    competitive_current.get("competitor_avg_visibility_percent", 0),
+                    competitive_prev.get("competitor_avg_visibility_percent", 0)
+                )
+                
+                scrunch_kpis = {
+                    "total_citations": {
+                        "value": int(current_metrics["total_citations"]),
+                        "change": round(total_citations_change, 2),
+                        "source": "Scrunch",
+                        "label": "Total Citations",
+                        "icon": "Link",
+                        "format": "number"
+                    },
+                    "brand_presence_rate": {
+                        "value": round(current_metrics["brand_presence_rate"], 1),
+                        "change": round(brand_presence_rate_change, 2),
+                        "source": "Scrunch",
+                        "label": "Brand Presence Rate",
+                        "icon": "CheckCircle",
+                        "format": "percentage"
+                    },
+                    "brand_sentiment_score": {
+                        "value": round(current_metrics["sentiment_score"], 1),
+                        "change": round(sentiment_score_change, 2),
+                        "source": "Scrunch",
+                        "label": "Brand Sentiment Score",
+                        "icon": "SentimentSatisfied",
+                        "format": "number"
+                    },
+                    "top10_prompt_percentage": {
+                        "value": round(current_metrics["top10_prompt_percentage"], 1),
+                        "change": round(top10_prompt_change, 2),
+                        "source": "Scrunch",
+                        "label": "Top 10 Prompt",
+                        "icon": "Article",
+                        "format": "percentage"
+                    },
+                    "prompt_search_volume": {
+                        "value": int(current_metrics["prompt_search_volume"]),
+                        "change": round(prompt_search_volume_change, 2),
+                        "source": "Scrunch",
+                        "label": "Prompt Search Volume",
+                        "icon": "TrendingUp",
+                        "format": "number"
+                    },
+                    "competitive_benchmarking": {
+                        "value": {
+                            "brand_visibility_percent": round(competitive_current.get("brand_visibility_percent", 0), 1),
+                            "competitor_avg_visibility_percent": round(competitive_current.get("competitor_avg_visibility_percent", 0), 1)
+                        },
+                        "change": {
+                            "brand_visibility": round(brand_visibility_change, 2),
+                            "competitor_avg_visibility": round(competitor_avg_change, 2)
+                        },
+                        "source": "Scrunch",
+                        "label": "Competitive Benchmarking",
+                        "icon": "BarChart",
+                        "format": "custom"
+                    }
+                }
+                
+                # Get top performing prompts
+                prompt_response_counts = {}
+                for r in responses:
+                    prompt_id = r.get("prompt_id")
+                    if prompt_id:
+                        prompt_response_counts[prompt_id] = prompt_response_counts.get(prompt_id, 0) + 1
+                
+                top_prompts = sorted(prompt_response_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+                top_performing_prompts = []
+                for idx, (prompt_id, count) in enumerate(top_prompts):
+                    prompt = next((p for p in prompts if p.get("id") == prompt_id), None)
+                    if prompt:
+                        top_performing_prompts.append({
+                            "id": prompt_id,
+                            "text": prompt.get("text", "N/A"),
+                            "rank": idx + 1,
+                            "responseCount": count,
+                            "variants": len([r for r in responses if r.get("prompt_id") == prompt_id])
+                        })
+                
+                scrunch_chart_data["top_performing_prompts"] = top_performing_prompts
+                
+        except Exception as e:
+            logger.warning(f"Error fetching Scrunch AI KPIs: {str(e)}")
+        
+        return {
+            "brand_id": brand_id,
+            "kpis": scrunch_kpis,
+            "chart_data": scrunch_chart_data,
+            "available": bool(scrunch_kpis)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching Scrunch dashboard data: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/data/scrunch/query/{brand_id}")
+@handle_api_errors(context="querying Scrunch analytics")
+async def query_scrunch_analytics(
+    brand_id: int,
+    fields: str = Query(..., description="Comma-separated list of fields (dimensions and metrics)"),
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD), last 90 days only"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    limit: int = Query(50000, description="Maximum number of results"),
+    offset: int = Query(0, description="Pagination offset")
+):
+    """
+    Query Scrunch analytics using the Query API
+    
+    Available dimensions:
+    - prompt_id, prompt
+    - date, date_week, date_month
+    - source_url, source_type (Brand, Competitor, Other)
+    - persona_id, persona_name
+    - competitor_id, competitor_name
+    - ai_platform (ChatGPT, Perplexity, Google AI Overviews, Meta, Claude)
+    - tag
+    - branded (boolean)
+    - stage (Advice, Awareness, Evaluation, Comparison, Other)
+    - prompt_topic (Key Topic)
+    - country (2-letter ISO code)
+    
+    Available metrics:
+    - responses (Count)
+    - brand_presence_percentage (Average)
+    - brand_position_score (Average, 0-100)
+    - brand_sentiment_score (Average, 0-100)
+    - competitor_presence_percentage (Average) - Requires competitor dimension
+    - competitor_position_score (Average, 0-100) - Requires competitor dimension
+    - competitor_sentiment_score (Average, 0-100) - Requires competitor dimension
+    """
+    try:
+        client = ScrunchAPIClient()
+        field_list = [f.strip() for f in fields.split(",")]
+        
+        result = await client.query_analytics(
+            brand_id=brand_id,
+            fields=field_list,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+            offset=offset
+        )
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error querying Scrunch analytics for brand {brand_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error querying Scrunch analytics: {str(e)}")
 
