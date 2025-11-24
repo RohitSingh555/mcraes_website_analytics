@@ -451,6 +451,24 @@ export const reportingAPI = {
     const response = await api.get(`/api/v1/data/reporting-dashboard/${brandId}/scrunch?${params.toString()}`)
     return response.data
   },
+  
+  // Get KPI selections for a brand (used to control public view visibility)
+  getKPISelections: async (brandId) => {
+    const response = await api.get(`/api/v1/data/reporting-dashboard/${brandId}/kpi-selections`)
+    return response.data
+  },
+  
+  // Save KPI selections for a brand (used by managers/admins)
+  saveKPISelections: async (brandId, selectedKPIs, visibleSections = null) => {
+    const payload = {
+      selected_kpis: Array.isArray(selectedKPIs) ? selectedKPIs : Array.from(selectedKPIs)
+    }
+    if (visibleSections) {
+      payload.visible_sections = Array.isArray(visibleSections) ? visibleSections : Array.from(visibleSections)
+    }
+    const response = await api.put(`/api/v1/data/reporting-dashboard/${brandId}/kpi-selections`, payload)
+    return response.data
+  },
 }
 
 // Authentication API endpoints

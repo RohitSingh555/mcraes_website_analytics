@@ -163,7 +163,7 @@ export default function ScrunchVisualizations({ brandId, startDate, endDate }) {
         const IconComponent = config.icon
         
         return (
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid item xs={12} sm={6} md={6}>
             <ChartCard
               title="Position (% of total)"
               badge="Scrunch"
@@ -270,7 +270,7 @@ export default function ScrunchVisualizations({ brandId, startDate, endDate }) {
         const IconComponent = config.icon
         
         return (
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid item xs={12} sm={6} md={6}>
             <ChartCard
               title="Brand Sentiment Analysis"
               badge="Scrunch"
@@ -403,7 +403,7 @@ export default function ScrunchVisualizations({ brandId, startDate, endDate }) {
 
       {/* Platform Distribution */}
       {data.platformDistribution && (
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={12} sm={6} md={6}>
           <ChartCard
             title="AI Platform Distribution"
             badge="Scrunch"

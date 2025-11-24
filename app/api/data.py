@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Query, HTTPException
-from typing import Optional, List
+from typing import Optional, List, Dict
 import logging
 from datetime import datetime, timedelta
 from app.services.supabase_service import SupabaseService
@@ -8,6 +8,7 @@ from app.services.agency_analytics_client import AgencyAnalyticsClient
 from app.services.scrunch_client import ScrunchAPIClient
 from app.core.exceptions import NotFoundException, handle_exception
 from app.core.error_utils import handle_api_errors
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -1795,7 +1796,23 @@ async def get_reporting_dashboard(
                         if prompt_id and prompt_id in valid_prompt_ids:
                             prompt_counts[prompt_id] = prompt_counts.get(prompt_id, 0) + 1
                     
-                    # Map prompts with response counts (only prompts for this brand_id)
+                    # Map prompts with response counts and unique platform variants (only prompts for this brand_id)
+                    # First, collect platform variants for each prompt
+                    prompt_variants = {}
+                    for r in responses:
+                        # Double-check brand_id matches
+                        response_brand_id = r.get("brand_id")
+                        if response_brand_id != brand_id:
+                            continue
+                        
+                        prompt_id = r.get("prompt_id")
+                        if prompt_id and prompt_id in valid_prompt_ids:
+                            if prompt_id not in prompt_variants:
+                                prompt_variants[prompt_id] = set()
+                            platform = r.get("platform")
+                            if platform:
+                                prompt_variants[prompt_id].add(platform)
+                    
                     top_prompts_data = []
                     for prompt in prompts:
                         # Ensure prompt belongs to this brand_id
@@ -1806,11 +1823,16 @@ async def get_reporting_dashboard(
                         prompt_id = prompt.get("id")
                         response_count = prompt_counts.get(prompt_id, 0)
                         if response_count > 0:
+                            # Count unique platforms (variants) for this prompt
+                            unique_variants = len(prompt_variants.get(prompt_id, set()))
+                            # If no platforms found, default to 1 (at least one variant exists)
+                            variants_count = unique_variants if unique_variants > 0 else 1
+                            
                             top_prompts_data.append({
                                 "id": prompt_id,
                                 "text": prompt.get("text") or prompt.get("prompt_text") or "N/A",
                                 "responseCount": response_count,
-                                "variants": response_count,  # Using response count as variants estimate
+                                "variants": variants_count,  # Count of unique platforms (ChatGPT, Perplexity, Claude, etc.)
                                 "totalResponsesForBrand": total_responses_for_brand  # Total responses for this brand_id
                             })
                     
@@ -2569,6 +2591,22 @@ async def get_scrunch_dashboard_data(
                     if prompt_id and prompt_id in valid_prompt_ids:
                         prompt_response_counts[prompt_id] = prompt_response_counts.get(prompt_id, 0) + 1
                 
+                # Collect unique platform variants for each prompt
+                prompt_variants = {}
+                for r in responses:
+                    # Double-check brand_id matches
+                    response_brand_id = r.get("brand_id")
+                    if response_brand_id != brand_id:
+                        continue
+                    
+                    prompt_id = r.get("prompt_id")
+                    if prompt_id and prompt_id in valid_prompt_ids:
+                        if prompt_id not in prompt_variants:
+                            prompt_variants[prompt_id] = set()
+                        platform = r.get("platform")
+                        if platform:
+                            prompt_variants[prompt_id].add(platform)
+                
                 # Sort by response count and get top 10
                 top_prompts = sorted(prompt_response_counts.items(), key=lambda x: x[1], reverse=True)[:10]
                 top_performing_prompts = []
@@ -2576,18 +2614,108 @@ async def get_scrunch_dashboard_data(
                     # Find prompt and ensure it belongs to this brand_id
                     prompt = next((p for p in prompts if p.get("id") == prompt_id and p.get("brand_id") == brand_id), None)
                     if prompt:
-                        # Count variants (responses with this prompt_id for this brand_id)
-                        variants = len([r for r in responses if r.get("prompt_id") == prompt_id and r.get("brand_id") == brand_id])
+                        # Count unique platforms (variants) for this prompt
+                        unique_variants = len(prompt_variants.get(prompt_id, set()))
+                        # If no platforms found, default to 1 (at least one variant exists)
+                        variants_count = unique_variants if unique_variants > 0 else 1
+                        
                         top_performing_prompts.append({
                             "id": prompt_id,
                             "text": prompt.get("text", "N/A"),
                             "rank": idx,
                             "responseCount": count,
-                            "variants": variants,
+                            "variants": variants_count,  # Count of unique platforms (ChatGPT, Perplexity, Claude, etc.)
                             "totalResponsesForBrand": total_responses_for_brand  # Total responses for this brand_id
                         })
                 
                 scrunch_chart_data["top_performing_prompts"] = top_performing_prompts
+                
+                # Calculate Scrunch AI Insights (same logic as main endpoint)
+                if prompts and responses:
+                    # Group responses by prompt
+                    prompt_data_map = {}
+                    for prompt in prompts:
+                        # Ensure prompt belongs to this brand_id
+                        if prompt.get("brand_id") != brand_id:
+                            continue
+                        prompt_data_map[prompt.get("id")] = {
+                            "prompt": prompt,
+                            "responses": [],
+                            "variants": set(),
+                            "citations": 0,
+                            "competitors": set()
+                        }
+                    
+                    for r in responses:
+                        # Double-check brand_id matches
+                        response_brand_id = r.get("brand_id")
+                        if response_brand_id != brand_id:
+                            continue
+                        
+                        prompt_id = r.get("prompt_id")
+                        if prompt_id and prompt_id in prompt_data_map:
+                            prompt_data_map[prompt_id]["responses"].append(r)
+                            if r.get("platform"):
+                                prompt_data_map[prompt_id]["variants"].add(r.get("platform"))
+                            
+                            # Count citations
+                            citations = r.get("citations")
+                            if citations:
+                                if isinstance(citations, list):
+                                    prompt_data_map[prompt_id]["citations"] += len(citations)
+                                elif isinstance(citations, str):
+                                    try:
+                                        import json
+                                        parsed = json.loads(citations)
+                                        if isinstance(parsed, list):
+                                            prompt_data_map[prompt_id]["citations"] += len(parsed)
+                                    except:
+                                        pass
+                            
+                            # Track competitors
+                            competitors_present = r.get("competitors_present", [])
+                            if isinstance(competitors_present, list):
+                                for comp in competitors_present:
+                                    if comp:
+                                        prompt_data_map[prompt_id]["competitors"].add(comp)
+                    
+                    # Calculate insights for each prompt
+                    insights = []
+                    for prompt_id, data in prompt_data_map.items():
+                        if len(data["responses"]) > 0:
+                            prompt = data["prompt"]
+                            response_count = len(data["responses"])
+                            presence_count = sum(1 for r in data["responses"] if r.get("brand_present") == True)
+                            presence = (presence_count / response_count * 100) if response_count > 0 else 0
+                            
+                            # Get category from topics or prompt text
+                            category = (
+                                prompt.get("topics", [None])[0] if prompt.get("topics") else None
+                            ) or (
+                                (prompt.get("text") or prompt.get("prompt_text") or "").split(" ")[:3]
+                            ) or prompt.get("stage") or "General"
+                            
+                            if isinstance(category, list):
+                                category = " ".join(category)
+                            
+                            insights.append({
+                                "id": prompt_id,
+                                "seedPrompt": prompt.get("text") or prompt.get("prompt_text") or "N/A",
+                                "stage": prompt.get("stage") or "Unknown",
+                                "variants": len(data["variants"]) or 1,
+                                "responses": response_count,
+                                "presence": round(presence, 1),
+                                "presenceChange": 0,  # Would need historical comparison
+                                "citations": data["citations"],
+                                "citationsChange": 0,  # Would need historical comparison
+                                "competitors": len(data["competitors"]),
+                                "competitorsChange": 0,  # Would need historical comparison
+                                "category": category
+                            })
+                    
+                    # Sort by response count (descending) and limit to top 20
+                    insights.sort(key=lambda x: x["responses"], reverse=True)
+                    scrunch_chart_data["scrunch_ai_insights"] = insights[:20]
                 
         except Exception as e:
             logger.warning(f"Error fetching Scrunch AI KPIs: {str(e)}")
@@ -2657,4 +2785,103 @@ async def query_scrunch_analytics(
     except Exception as e:
         logger.error(f"Error querying Scrunch analytics for brand {brand_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error querying Scrunch analytics: {str(e)}")
+
+# =====================================================
+# KPI Selection Management Endpoints
+# =====================================================
+
+class KPISelectionRequest(BaseModel):
+    selected_kpis: List[str]
+    visible_sections: Optional[List[str]] = None  # Optional for backward compatibility
+
+@router.get("/data/reporting-dashboard/{brand_id}/kpi-selections")
+@handle_api_errors(context="fetching KPI selections")
+async def get_brand_kpi_selections(brand_id: int):
+    """Get saved KPI selections for a brand (used to control public view visibility)"""
+    try:
+        supabase = SupabaseService()
+        
+        # Check if brand exists
+        brand_result = supabase.client.table("brands").select("id").eq("id", brand_id).execute()
+        brands = brand_result.data if hasattr(brand_result, 'data') else []
+        
+        if not brands:
+            raise HTTPException(status_code=404, detail="Brand not found")
+        
+        # Get KPI selections for this brand
+        selection_result = supabase.client.table("brand_kpi_selections").select("*").eq("brand_id", brand_id).execute()
+        selections = selection_result.data if hasattr(selection_result, 'data') else []
+        
+        if selections and len(selections) > 0:
+            return {
+                "brand_id": brand_id,
+                "selected_kpis": selections[0].get("selected_kpis", []),
+                "visible_sections": selections[0].get("visible_sections", ["ga4", "scrunch_ai", "brand_analytics", "advanced_analytics", "performance_metrics"]),
+                "updated_at": selections[0].get("updated_at")
+            }
+        else:
+            # Return default values if no selection exists (means all sections and KPIs are shown)
+            return {
+                "brand_id": brand_id,
+                "selected_kpis": [],
+                "visible_sections": ["ga4", "scrunch_ai", "brand_analytics", "advanced_analytics", "performance_metrics"],
+                "updated_at": None
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching KPI selections for brand {brand_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching KPI selections: {str(e)}")
+
+@router.put("/data/reporting-dashboard/{brand_id}/kpi-selections")
+@handle_api_errors(context="saving KPI selections")
+async def save_brand_kpi_selections(brand_id: int, request: KPISelectionRequest):
+    """Save KPI selections for a brand (used by managers/admins to control public view visibility)"""
+    try:
+        supabase = SupabaseService()
+        
+        # Check if brand exists
+        brand_result = supabase.client.table("brands").select("id").eq("id", brand_id).execute()
+        brands = brand_result.data if hasattr(brand_result, 'data') else []
+        
+        if not brands:
+            raise HTTPException(status_code=404, detail="Brand not found")
+        
+        # Upsert KPI selections (insert or update)
+        # Use upsert to handle both insert and update in one operation
+        selection_data = {
+            "brand_id": brand_id,
+            "selected_kpis": request.selected_kpis
+        }
+        
+        # Add visible_sections if provided, otherwise use default (all sections)
+        if request.visible_sections is not None:
+            selection_data["visible_sections"] = request.visible_sections
+        else:
+            # If not provided, keep existing sections or use default
+            existing_result = supabase.client.table("brand_kpi_selections").select("visible_sections").eq("brand_id", brand_id).execute()
+            existing = existing_result.data if hasattr(existing_result, 'data') else []
+            if existing and len(existing) > 0 and existing[0].get("visible_sections"):
+                selection_data["visible_sections"] = existing[0]["visible_sections"]
+            else:
+                selection_data["visible_sections"] = ["ga4", "scrunch_ai", "brand_analytics", "advanced_analytics", "performance_metrics"]
+        
+        upsert_result = supabase.client.table("brand_kpi_selections").upsert(
+            selection_data,
+            on_conflict="brand_id"
+        ).execute()
+        
+        logger.info(f"Saved KPI selections for brand {brand_id}: {len(request.selected_kpis)} KPIs, {len(selection_data.get('visible_sections', []))} sections")
+        
+        return {
+            "brand_id": brand_id,
+            "selected_kpis": request.selected_kpis,
+            "visible_sections": selection_data.get("visible_sections", []),
+            "message": "KPI and section selections saved successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error saving KPI selections for brand {brand_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error saving KPI selections: {str(e)}")
 

@@ -274,21 +274,109 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
   // Pagination state for Scrunch AI Insights table
   const [insightsPage, setInsightsPage] = useState(0);
   const [insightsRowsPerPage, setInsightsRowsPerPage] = useState(10);
+  // Public KPI selections (loaded from database for public view)
+  const [publicKPISelections, setPublicKPISelections] = useState(null);
+  // Section visibility state (for authenticated users to configure)
+  const [visibleSections, setVisibleSections] = useState(new Set(["ga4", "scrunch_ai", "brand_analytics", "advanced_analytics", "performance_metrics"]));
+  const [tempVisibleSections, setTempVisibleSections] = useState(new Set(["ga4", "scrunch_ai", "brand_analytics", "advanced_analytics", "performance_metrics"])); // For dialog
+  // Public section visibility (loaded from database for public view)
+  const [publicVisibleSections, setPublicVisibleSections] = useState(null);
   const theme = useTheme();
 
-  // Load saved KPI preferences from localStorage
+  // Load KPI selections from database when brand changes (for authenticated users)
   useEffect(() => {
-    const savedKPIs = localStorage.getItem("reportingDashboardSelectedKPIs");
-    if (savedKPIs) {
-      try {
-        const parsed = JSON.parse(savedKPIs);
-        setSelectedKPIs(new Set(parsed));
-        setTempSelectedKPIs(new Set(parsed));
-      } catch (e) {
-        console.error("Error loading saved KPIs:", e);
-      }
+    if (selectedBrandId && !isPublic) {
+      loadKPISelections();
     }
-  }, []);
+  }, [selectedBrandId, isPublic]);
+
+  // Load public KPI selections when in public mode
+  useEffect(() => {
+    if (selectedBrandId && isPublic) {
+      loadPublicKPISelections();
+    }
+  }, [selectedBrandId, isPublic]);
+
+  const loadKPISelections = async () => {
+    if (!selectedBrandId) return;
+    
+    try {
+      const data = await reportingAPI.getKPISelections(selectedBrandId);
+      if (data) {
+        // Load KPI selections
+        if (data.selected_kpis && data.selected_kpis.length > 0) {
+          setSelectedKPIs(new Set(data.selected_kpis));
+          setTempSelectedKPIs(new Set(data.selected_kpis));
+        } else {
+          // If no selections saved, default to all available KPIs
+          setSelectedKPIs(new Set(KPI_ORDER));
+          setTempSelectedKPIs(new Set(KPI_ORDER));
+        }
+        
+        // Load section visibility
+        if (data.visible_sections && data.visible_sections.length > 0) {
+          setVisibleSections(new Set(data.visible_sections));
+          setTempVisibleSections(new Set(data.visible_sections));
+        } else {
+          // Default to all sections visible
+          const defaultSections = new Set(["ga4", "scrunch_ai", "brand_analytics", "advanced_analytics", "performance_metrics"]);
+          setVisibleSections(defaultSections);
+          setTempVisibleSections(defaultSections);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading KPI selections:", err);
+      // Fallback to all KPIs and sections on error
+      setSelectedKPIs(new Set(KPI_ORDER));
+      setTempSelectedKPIs(new Set(KPI_ORDER));
+      const defaultSections = new Set(["ga4", "scrunch_ai", "brand_analytics", "advanced_analytics", "performance_metrics"]);
+      setVisibleSections(defaultSections);
+      setTempVisibleSections(defaultSections);
+    }
+  };
+
+  const loadPublicKPISelections = async () => {
+    if (!selectedBrandId) return;
+    
+    try {
+      const data = await reportingAPI.getKPISelections(selectedBrandId);
+      if (data) {
+        // Load public KPI selections
+        if (data.selected_kpis && data.selected_kpis.length > 0) {
+          setPublicKPISelections(new Set(data.selected_kpis));
+        } else {
+          // If no selections saved, show all available KPIs
+          setPublicKPISelections(null);
+        }
+        
+        // Load public section visibility
+        if (data.visible_sections && data.visible_sections.length > 0) {
+          setPublicVisibleSections(new Set(data.visible_sections));
+        } else {
+          // If no selections saved, show all sections
+          setPublicVisibleSections(null);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading public KPI selections:", err);
+      // On error, show all KPIs and sections
+      setPublicKPISelections(null);
+      setPublicVisibleSections(null);
+    }
+  };
+
+  // Comprehensive data loading function - loads all dashboard data including KPI selections
+  const loadAllData = async () => {
+    if (!selectedBrandId) return;
+    
+    // Load all data sources in parallel
+    await Promise.all([
+      loadDashboardData(),
+      loadScrunchData(),
+      !isPublic ? loadBrandAnalytics() : Promise.resolve(),
+      !isPublic ? loadKPISelections() : loadPublicKPISelections(),
+    ]);
+  };
 
   useEffect(() => {
     if (isPublic && publicSlug) {
@@ -316,12 +404,8 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
       setError(null);
       // Reset pagination when data changes
       setInsightsPage(0);
-      // Load all data sources in parallel
-      loadDashboardData();
-      loadScrunchData();
-      if (!isPublic) {
-        loadBrandAnalytics();
-      }
+      // Load all data sources in parallel including KPI selections
+      loadAllData();
     }
   }, [selectedBrandId, startDate, endDate, isPublic]);
 
@@ -416,9 +500,14 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
         });
         setDashboardData(data);
 
-        // Initialize selected KPIs with all available KPIs
-        if (selectedKPIs.size === 0 && data.kpis) {
-          setSelectedKPIs(new Set(Object.keys(data.kpis)));
+        // Initialize selected KPIs with all available KPIs if not already loaded from database
+        // (This is a fallback - loadKPISelections effect should handle this)
+        if (selectedKPIs.size === 0 && data.kpis && !isPublic) {
+          const availableKPIs = Object.keys(data.kpis).filter(k => KPI_ORDER.includes(k));
+          if (availableKPIs.length > 0) {
+            setSelectedKPIs(new Set(availableKPIs));
+            setTempSelectedKPIs(new Set(availableKPIs));
+          }
         }
       } else {
         // No data available for this brand
@@ -716,20 +805,59 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
     setTempSelectedKPIs(new Set());
   };
 
-  const handleSaveKPISelection = () => {
-    setSelectedKPIs(new Set(tempSelectedKPIs));
-    // Save to localStorage
-    localStorage.setItem(
-      "reportingDashboardSelectedKPIs",
-      JSON.stringify(Array.from(tempSelectedKPIs))
-    );
-    setShowKPISelector(false);
+  const handleSaveKPISelection = async () => {
+    if (!selectedBrandId) return;
+    
+    try {
+      // Save to database (both KPIs and sections)
+      await reportingAPI.saveKPISelections(selectedBrandId, tempSelectedKPIs, Array.from(tempVisibleSections));
+      setSelectedKPIs(new Set(tempSelectedKPIs));
+      setVisibleSections(new Set(tempVisibleSections));
+      setShowKPISelector(false);
+      console.log("KPI and section selections saved successfully");
+    } catch (err) {
+      console.error("Error saving KPI selections:", err);
+      setError("Failed to save KPI and section selections. Please try again.");
+    }
   };
 
   const handleOpenKPISelector = () => {
     // Initialize temp selection with current selection
     setTempSelectedKPIs(new Set(selectedKPIs));
+    setTempVisibleSections(new Set(visibleSections));
     setShowKPISelector(true);
+  };
+
+  // Helper function to check if a section should be visible
+  const isSectionVisible = (sectionKey) => {
+    if (isPublic) {
+      // In public mode, use publicVisibleSections
+      if (publicVisibleSections === null) {
+        return true; // Show all if no selections saved
+      }
+      return publicVisibleSections.has(sectionKey);
+    } else {
+      // In authenticated mode, always show (managers can see everything)
+      return true;
+    }
+  };
+
+  const handleSectionChange = (sectionKey, checked) => {
+    const newSections = new Set(tempVisibleSections);
+    if (checked) {
+      newSections.add(sectionKey);
+    } else {
+      newSections.delete(sectionKey);
+    }
+    setTempVisibleSections(newSections);
+  };
+
+  const handleSelectAllSections = () => {
+    setTempVisibleSections(new Set(["ga4", "scrunch_ai", "brand_analytics", "advanced_analytics", "performance_metrics"]));
+  };
+
+  const handleDeselectAllSections = () => {
+    setTempVisibleSections(new Set());
   };
 
   // Get KPIs in the correct order, filtered by selection
@@ -743,10 +871,15 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
   const displayedKPIs =
     Object.keys(allKPIs).length > 0
       ? isPublic
-        ? KPI_ORDER.filter(
-            (key) => allKPIs[key] // Show all available KPIs in public mode
+        ? // In public mode, use saved selections from database (or show all if none saved)
+          (publicKPISelections === null
+            ? KPI_ORDER.filter((key) => allKPIs[key]) // Show all if no selections saved
+            : KPI_ORDER.filter(
+                (key) => allKPIs[key] && publicKPISelections.has(key)
+              )
           ).map((key) => [key, allKPIs[key]])
-        : KPI_ORDER.filter(
+        : // In authenticated mode, use user's current selection
+          KPI_ORDER.filter(
             (key) =>
               allKPIs[key] &&
               selectedKPIs.has(key) &&
@@ -778,20 +911,22 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
               : "Unified Reporting Dashboard"}
           </Typography>
           <Box display="flex" gap={1.5}>
-            <IconButton
-              onClick={handleOpenKPISelector}
-              sx={{
-                border: `1px solid ${theme.palette.divider}`,
-                borderRadius: 2,
-                bgcolor: "background.paper",
-                "&:hover": {
-                  bgcolor: alpha(theme.palette.primary.main, 0.05),
-                },
-              }}
-              title="Configure KPIs"
-            >
-              <SettingsIcon sx={{ fontSize: 20 }} />
-            </IconButton>
+            {!isPublic && (
+              <IconButton
+                onClick={handleOpenKPISelector}
+                sx={{
+                  border: `1px solid ${theme.palette.divider}`,
+                  borderRadius: 2,
+                  bgcolor: "background.paper",
+                  "&:hover": {
+                    bgcolor: alpha(theme.palette.primary.main, 0.05),
+                  },
+                }}
+                title="Configure KPIs for Public View"
+              >
+                <SettingsIcon sx={{ fontSize: 20 }} />
+              </IconButton>
+            )}
             {!isPublic && (
               <Button
                 variant="outlined"
@@ -819,7 +954,7 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
               variant="outlined"
               size="small"
               startIcon={<RefreshIcon sx={{ fontSize: 16 }} />}
-              onClick={loadDashboardData}
+              onClick={loadAllData}
               sx={{
                 borderRadius: 2,
                 px: 2,
@@ -989,7 +1124,7 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
       ) : dashboardData ? (
         <>
           {/* Google Analytics 4 Section */}
-          {(dashboardData?.kpis?.users ||
+          {isSectionVisible("ga4") && (dashboardData?.kpis?.users ||
             dashboardData?.chart_data?.ga4_traffic_overview) && (
             <SectionContainer
               title="Google Analytics 4"
@@ -3397,7 +3532,7 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                     })()}
 
                 {/* New Query API Visualizations - Separate component that fetches its own data */}
-                {selectedBrandId  && (
+                {isSectionVisible("advanced_analytics") && selectedBrandId  && (
                   <Box sx={{ mb: 4, mt: 4 }}>
                 <Typography
                       variant="h6"
@@ -3421,7 +3556,7 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
             )}
 
             {/* Brand Analytics Charts Section */}
-            {brandAnalytics && (
+            {isSectionVisible("brand_analytics") && brandAnalytics && (
               <SectionContainer
                 title="Brand Analytics Insights"
                 loading={loadingAnalytics}
@@ -3454,13 +3589,13 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                               >
                                 Platform Distribution
                               </Typography>
-                              <Box sx={{ width: '100%', height: 300, padding: 2 }}>
+                              <Box sx={{ width: '100%', height: 350, padding: 2 }}>
                                 <ResponsiveContainer width="100%" height="100%">
                                   <PieChart
                                     margin={{
                                       top: 10,
                                       right: 10,
-                                      bottom: 10,
+                                      bottom: 50,
                                       left: 10
                                     }}
                                   >
@@ -3472,11 +3607,11 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                                         value,
                                       }))}
                                       cx="50%"
-                                      cy="50%"
+                                      cy="45%"
                                     labelLine={false}
                                     label={false}
-                                      outerRadius={90}
-                                      innerRadius={50}
+                                      outerRadius={80}
+                                      innerRadius={45}
                                       fill="#8884d8"
                                       dataKey="value"
                                     >
@@ -3510,6 +3645,17 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                                         border: "none",
                                         boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                                         backgroundColor: "#FFFFFF",
+                                      }}
+                                    />
+                                    <Legend
+                                      wrapperStyle={{
+                                        paddingTop: "10px",
+                                        fontSize: "0.875rem",
+                                      }}
+                                      iconType="circle"
+                                      formatter={(value) => {
+                                        const maxLength = 20;
+                                        return value.length > maxLength ? value.substring(0, maxLength) + '...' : value;
                                       }}
                                     />
                                   </PieChart>
@@ -3547,13 +3693,13 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                               >
                                 Funnel Stage Distribution
                               </Typography>
-                              <Box sx={{ width: '100%', height: 300, padding: 2 }}>
+                              <Box sx={{ width: '100%', height: 350, padding: 2 }}>
                                 <ResponsiveContainer width="100%" height="100%">
                                   <PieChart
                                     margin={{
                                       top: 10,
                                       right: 10,
-                                      bottom: 10,
+                                      bottom: 50,
                                       left: 10
                                     }}
                                   >
@@ -3565,10 +3711,10 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                                         value,
                                       }))}
                                       cx="50%"
-                                      cy="50%"
+                                      cy="45%"
                                     labelLine={false}
                                     label={false}
-                                      outerRadius={90}
+                                      outerRadius={80}
                                       fill="#8884d8"
                                       dataKey="value"
                                     >
@@ -3600,6 +3746,17 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                                         border: "none",
                                         boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                                         backgroundColor: "#FFFFFF",
+                                      }}
+                                    />
+                                    <Legend
+                                      wrapperStyle={{
+                                        paddingTop: "10px",
+                                        fontSize: "0.875rem",
+                                      }}
+                                      iconType="circle"
+                                      formatter={(value) => {
+                                        const maxLength = 20;
+                                        return value.length > maxLength ? value.substring(0, maxLength) + '...' : value;
                                       }}
                                     />
                                   </PieChart>
@@ -3638,13 +3795,13 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                               >
                                 Brand Sentiment
                               </Typography>
-                              <Box sx={{ width: '100%', height: 300, padding: 2 }}>
+                              <Box sx={{ width: '100%', height: 350, padding: 2 }}>
                                 <ResponsiveContainer width="100%" height="100%">
                                   <PieChart
                                     margin={{
                                       top: 10,
                                       right: 10,
-                                      bottom: 10,
+                                      bottom: 50,
                                       left: 10
                                     }}
                                   >
@@ -3660,11 +3817,11 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                                           value,
                                         }))}
                                       cx="50%"
-                                      cy="50%"
+                                      cy="45%"
                                     labelLine={false}
                                     label={false}
-                                      outerRadius={90}
-                                      innerRadius={50}
+                                      outerRadius={80}
+                                      innerRadius={45}
                                       fill="#8884d8"
                                       dataKey="value"
                                     >
@@ -3697,6 +3854,17 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                                         border: "none",
                                         boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                                         backgroundColor: "#FFFFFF",
+                                      }}
+                                    />
+                                    <Legend
+                                      wrapperStyle={{
+                                        paddingTop: "10px",
+                                        fontSize: "0.875rem",
+                                      }}
+                                      iconType="circle"
+                                      formatter={(value) => {
+                                        const maxLength = 20;
+                                        return value.length > maxLength ? value.substring(0, maxLength) + '...' : value;
                                       }}
                                     />
                                   </PieChart>
@@ -3868,7 +4036,7 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
             )}
 
             {/* General KPI Grid - All Other KPIs */}
-            {displayedKPIs.length > 0 && (
+            {isSectionVisible("performance_metrics") && displayedKPIs.length > 0 && (
               <SectionContainer title="All Performance Metrics">
                 <Grid container spacing={2} sx={{ mb: 4 }}>
                   {displayedKPIs.map(([key, kpi], index) => (
@@ -3922,7 +4090,7 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
             alignItems="center"
           >
             <Typography variant="h6" fontWeight={600}>
-              Select KPIs to Display
+              Select KPIs for Public View
             </Typography>
             <Box display="flex" gap={1}>
               <Button size="small" onClick={handleSelectAll} variant="outlined">
@@ -3938,8 +4106,92 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
             </Box>
           </Box>
         </DialogTitle>
-        <DialogContent dividers sx={{ maxHeight: 500, overflow: "auto" }}>
+        <DialogContent dividers sx={{ maxHeight: 600, overflow: "auto" }}>
           <Box>
+            {/* Section Visibility Controls */}
+            <Box mb={4} pb={3} borderBottom={`1px solid ${theme.palette.divider}`}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Typography
+                  variant="subtitle1"
+                  fontWeight={700}
+                  sx={{
+                    fontSize: "1rem",
+                    letterSpacing: "-0.01em",
+                  }}
+                >
+                  Dashboard Sections
+                </Typography>
+                <Box display="flex" gap={1}>
+                  <Button size="small" onClick={handleSelectAllSections} variant="outlined">
+                    Select All
+                  </Button>
+                  <Button size="small" onClick={handleDeselectAllSections} variant="outlined">
+                    Deselect All
+                  </Button>
+                </Box>
+              </Box>
+              <Typography variant="body2" color="text.secondary" mb={2} sx={{ fontSize: "0.875rem" }}>
+                Choose which sections should be visible in the public dashboard view.
+              </Typography>
+              <Box display="flex" flexDirection="column" gap={1.5}>
+                {[
+                  { key: "ga4", label: "Google Analytics 4", description: "Website traffic and engagement metrics" },
+                  { key: "scrunch_ai", label: "Scrunch AI", description: "AI platform presence and engagement metrics" },
+                  { key: "brand_analytics", label: "Brand Analytics Insights", description: "Platform distribution, funnel stages, and sentiment analysis" },
+                  { key: "advanced_analytics", label: "Advanced Analytics (Query API)", description: "Detailed Scrunch AI visualizations and insights" },
+                  { key: "performance_metrics", label: "All Performance Metrics", description: "Individual KPI cards from all data sources" },
+                ].map((section) => (
+                  <FormControlLabel
+                    key={section.key}
+                    control={
+                      <Checkbox
+                        checked={tempVisibleSections.has(section.key)}
+                        onChange={(e) => handleSectionChange(section.key, e.target.checked)}
+                        sx={{
+                          color: theme.palette.primary.main,
+                          "&.Mui-checked": {
+                            color: theme.palette.primary.main,
+                          },
+                        }}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography variant="body2" fontWeight={600}>
+                          {section.label}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.75rem" }}>
+                          {section.description}
+                        </Typography>
+                      </Box>
+                    }
+                    sx={{
+                      mb: 0.5,
+                      width: "100%",
+                      alignItems: "flex-start",
+                    }}
+                  />
+                ))}
+              </Box>
+            </Box>
+
+            {/* KPI Selection Controls */}
+            <Box mb={2}>
+              <Typography
+                variant="subtitle1"
+                fontWeight={700}
+                mb={2}
+                sx={{
+                  fontSize: "1rem",
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                Performance Metrics (KPIs)
+              </Typography>
+              <Typography variant="body2" color="text.secondary" mb={2} sx={{ fontSize: "0.875rem" }}>
+                Choose which individual KPIs should be visible in the "All Performance Metrics" section.
+              </Typography>
+            </Box>
             {/* Group KPIs by source */}
             {["GA4", "AgencyAnalytics", "Scrunch"].map((source) => {
               const sourceKPIs = KPI_ORDER.filter((key) => {
@@ -4052,7 +4304,7 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
           <Button
             onClick={handleSaveKPISelection}
             variant="contained"
-            disabled={tempSelectedKPIs.size === 0}
+            disabled={tempVisibleSections.size === 0}
             sx={{
               bgcolor: theme.palette.primary.main,
               "&:hover": {
