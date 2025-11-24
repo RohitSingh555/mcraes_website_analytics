@@ -27,7 +27,7 @@ export default function SectionContainer({
     >
       {title && (
         <Typography
-          variant="h5"
+          variant="h1"
           fontWeight={700}
           sx={{
             mb: description ? 1 : 3,

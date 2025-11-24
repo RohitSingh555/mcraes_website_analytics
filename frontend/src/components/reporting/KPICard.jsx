@@ -30,7 +30,7 @@ export default function KPICard({ kpi, kpiKey, index = 0, theme }) {
             }
           }}
         >
-          <CardContent sx={{ p: 2.5 }}>
+          <CardContent sx={{ p: { xs: 2.5, sm: 3 }, overflow: 'visible' }}>
             {/* Source Label */}
             <Box display="flex" justifyContent="flex-end" mb={1}>
               <Chip
@@ -76,54 +76,51 @@ export default function KPICard({ kpi, kpiKey, index = 0, theme }) {
               {formatValue(kpi)}
             </Typography>
             
-            {/* Change Indicator */}
-            {kpi.change !== undefined && kpi.change !== null && 
-             !['impressions', 'clicks', 'ctr', 'influencer_reach', 'scrunch_engagement_rate', 'total_interactions', 'cost_per_engagement', 'all_keywords_ranking'].includes(kpiKey) &&
-             kpi.format !== 'custom' && typeof kpi.change === 'number' && (
-              <Box display="flex" alignItems="center" gap={0.5}>
-                {kpi.change >= 0 ? (
+            {/* Change Indicator - Only show when positive or zero */}
+            {sourceLabel !== 'Scrunch' && <Box
+              sx={{
+                minHeight: '24px',
+                display: 'flex',
+                alignItems: 'center'
+              }}
+            >
+              {kpi.change !== undefined && kpi.change !== null && 
+               !['impressions', 'clicks', 'ctr', 'influencer_reach', 'scrunch_engagement_rate', 'total_interactions', 'cost_per_engagement', 'all_keywords_ranking'].includes(kpiKey) &&
+               kpi.format !== 'custom' && typeof kpi.change === 'number' &&
+               kpi.change >= 0 && (
+                <Box display="flex" alignItems="center" gap={0.5}>
                   <TrendingUpIcon sx={{ fontSize: 14, color: '#34A853' }} />
-                ) : (
-                  <TrendingDownIcon sx={{ fontSize: 14, color: '#EA4335' }} />
-                )}
-                <Typography 
-                  variant="caption" 
-                  sx={{ 
-                    fontWeight: 600,
-                    fontSize: '0.75rem',
-                    color: kpi.change >= 0 ? '#34A853' : '#EA4335'
-                  }}
-                >
-                  {kpi.change >= 0 ? '+' : ''}{kpi.change.toFixed(1)}%
-                </Typography>
-              </Box>
-            )}
-            {/* Handle custom format KPIs with object change values */}
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      fontWeight: 600,
+                      fontSize: '0.75rem',
+                      color: '#34A853'
+                    }}
+                  >
+                    +{kpi.change.toFixed(1)}%
+                  </Typography>
+                </Box>
+              )}
+            </Box>}
+            {/* Handle custom format KPIs with object change values - Only show when positive or zero */}
             {kpi.format === 'custom' && kpi.change && typeof kpi.change === 'object' && (
               <Box display="flex" flexDirection="column" gap={0.5} mt={0.5}>
                 {kpiKey === 'competitive_benchmarking' && (
                   <>
-                    {kpi.change.brand_visibility !== undefined && kpi.change.brand_visibility !== null && (
+                    {kpi.change.brand_visibility !== undefined && kpi.change.brand_visibility !== null && kpi.change.brand_visibility >= 0 && (
                       <Box display="flex" alignItems="center" gap={0.5}>
-                        {kpi.change.brand_visibility >= 0 ? (
-                          <TrendingUpIcon sx={{ fontSize: 12, color: '#34A853' }} />
-                        ) : (
-                          <TrendingDownIcon sx={{ fontSize: 12, color: '#EA4335' }} />
-                        )}
-                        <Typography variant="caption" sx={{ fontSize: '0.7rem', color: kpi.change.brand_visibility >= 0 ? '#34A853' : '#EA4335' }}>
-                          Brand: {kpi.change.brand_visibility >= 0 ? '+' : ''}{kpi.change.brand_visibility.toFixed(1)}%
+                        <TrendingUpIcon sx={{ fontSize: 12, color: '#34A853' }} />
+                        <Typography variant="caption" sx={{ fontSize: '0.7rem', color: '#34A853' }}>
+                          Brand: +{kpi.change.brand_visibility.toFixed(1)}%
                         </Typography>
                       </Box>
                     )}
-                    {kpi.change.competitor_avg_visibility !== undefined && kpi.change.competitor_avg_visibility !== null && (
+                    {kpi.change.competitor_avg_visibility !== undefined && kpi.change.competitor_avg_visibility !== null && kpi.change.competitor_avg_visibility >= 0 && (
                       <Box display="flex" alignItems="center" gap={0.5}>
-                        {kpi.change.competitor_avg_visibility >= 0 ? (
-                          <TrendingUpIcon sx={{ fontSize: 12, color: '#34A853' }} />
-                        ) : (
-                          <TrendingDownIcon sx={{ fontSize: 12, color: '#EA4335' }} />
-                        )}
-                        <Typography variant="caption" sx={{ fontSize: '0.7rem', color: kpi.change.competitor_avg_visibility >= 0 ? '#34A853' : '#EA4335' }}>
-                          Competitor avg: {kpi.change.competitor_avg_visibility >= 0 ? '+' : ''}{kpi.change.competitor_avg_visibility.toFixed(1)}%
+                        <TrendingUpIcon sx={{ fontSize: 12, color: '#34A853' }} />
+                        <Typography variant="caption" sx={{ fontSize: '0.7rem', color: '#34A853' }}>
+                          Competitor avg: +{kpi.change.competitor_avg_visibility.toFixed(1)}%
                         </Typography>
                       </Box>
                     )}
@@ -131,27 +128,19 @@ export default function KPICard({ kpi, kpiKey, index = 0, theme }) {
                 )}
                 {kpiKey === 'keyword_ranking_change_and_volume' && (
                   <>
-                    {kpi.change.ranking_change !== undefined && kpi.change.ranking_change !== null && (
+                    {kpi.change.ranking_change !== undefined && kpi.change.ranking_change !== null && kpi.change.ranking_change >= 0 && (
                       <Box display="flex" alignItems="center" gap={0.5}>
-                        {kpi.change.ranking_change >= 0 ? (
-                          <TrendingUpIcon sx={{ fontSize: 12, color: '#34A853' }} />
-                        ) : (
-                          <TrendingDownIcon sx={{ fontSize: 12, color: '#EA4335' }} />
-                        )}
-                        <Typography variant="caption" sx={{ fontSize: '0.7rem', color: kpi.change.ranking_change >= 0 ? '#34A853' : '#EA4335' }}>
-                          Ranking change: {kpi.change.ranking_change >= 0 ? '+' : ''}{kpi.change.ranking_change.toFixed(1)}%
+                        <TrendingUpIcon sx={{ fontSize: 12, color: '#34A853' }} />
+                        <Typography variant="caption" sx={{ fontSize: '0.7rem', color: '#34A853' }}>
+                          Ranking change: +{kpi.change.ranking_change.toFixed(1)}%
                         </Typography>
                       </Box>
                     )}
-                    {kpi.change.search_volume !== undefined && kpi.change.search_volume !== null && (
+                    {kpi.change.search_volume !== undefined && kpi.change.search_volume !== null && kpi.change.search_volume >= 0 && (
                       <Box display="flex" alignItems="center" gap={0.5}>
-                        {kpi.change.search_volume >= 0 ? (
-                          <TrendingUpIcon sx={{ fontSize: 12, color: '#34A853' }} />
-                        ) : (
-                          <TrendingDownIcon sx={{ fontSize: 12, color: '#EA4335' }} />
-                        )}
-                        <Typography variant="caption" sx={{ fontSize: '0.7rem', color: kpi.change.search_volume >= 0 ? '#34A853' : '#EA4335' }}>
-                          Search volume: {kpi.change.search_volume >= 0 ? '+' : ''}{kpi.change.search_volume.toFixed(1)}%
+                        <TrendingUpIcon sx={{ fontSize: 12, color: '#34A853' }} />
+                        <Typography variant="caption" sx={{ fontSize: '0.7rem', color: '#34A853' }}>
+                          Search volume: +{kpi.change.search_volume.toFixed(1)}%
                         </Typography>
                       </Box>
                     )}

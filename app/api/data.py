@@ -962,8 +962,13 @@ async def get_reporting_dashboard(
         if brand.get("ga4_property_id"):
             try:
                 property_id = brand["ga4_property_id"]
-                logger.info(f"Fetching GA4 data for property {property_id}")
+                logger.info(f"[GA4 API CALL] Fetching GA4 data for property {property_id}")
+                logger.info(f"[GA4 API CALL] Function: ga4_client.get_traffic_overview")
+                logger.info(f"[GA4 API CALL] Parameters: property_id={property_id}, start_date={start_date}, end_date={end_date}")
                 traffic_overview = await ga4_client.get_traffic_overview(property_id, start_date, end_date)
+                logger.info(f"[GA4 API RESPONSE] traffic_overview received: {traffic_overview}")
+                logger.info(f"[GA4 API RESPONSE] Raw values - users: {traffic_overview.get('users')}, sessions: {traffic_overview.get('sessions')}, newUsers: {traffic_overview.get('newUsers')}")
+                logger.info(f"[GA4 API RESPONSE] sessionsChange from API: {traffic_overview.get('sessionsChange')}")
                 
                 # Get conversions using the same metric as the chart (standard GA4 conversions metric)
                 # This ensures consistency between KPI block and chart
@@ -1003,7 +1008,15 @@ async def get_reporting_dashboard(
                 prev_end = (start_dt - timedelta(days=1)).strftime("%Y-%m-%d")
                 prev_start = (start_dt - timedelta(days=period_duration)).strftime("%Y-%m-%d")
                 
+                logger.info(f"[GA4 CHANGE CALCULATION] Calculating change using previous period")
+                logger.info(f"[GA4 CHANGE CALCULATION] Current period: {start_date} to {end_date} (duration: {period_duration} days)")
+                logger.info(f"[GA4 CHANGE CALCULATION] Previous period: {prev_start} to {prev_end} (duration: {period_duration} days)")
+                logger.info(f"[GA4 API CALL] Fetching previous period data - Function: ga4_client.get_traffic_overview")
+                logger.info(f"[GA4 API CALL] Parameters: property_id={property_id}, start_date={prev_start}, end_date={prev_end}")
                 prev_traffic_overview = await ga4_client.get_traffic_overview(property_id, prev_start, prev_end)
+                logger.info(f"[GA4 API RESPONSE] prev_traffic_overview received: {prev_traffic_overview}")
+                if prev_traffic_overview:
+                    logger.info(f"[GA4 API RESPONSE] Previous period values - users: {prev_traffic_overview.get('users')}, sessions: {prev_traffic_overview.get('sessions')}, newUsers: {prev_traffic_overview.get('newUsers')}")
                 
                 # Get previous period conversions using the same metric
                 prev_total_conversions = 0
@@ -1023,18 +1036,34 @@ async def get_reporting_dashboard(
                     logger.warning(f"Could not fetch previous period conversions: {str(e)}")
                 
                 users_change = 0
-                sessions_change = traffic_overview.get("sessionsChange", 0) if traffic_overview else 0
+                # NOTE: sessionsChange from API uses 60-day lookback, but we recalculate using same-duration period
+                sessions_change_from_api = traffic_overview.get("sessionsChange", 0) if traffic_overview else 0
+                logger.info(f"[GA4 CHANGE CALCULATION] sessionsChange from API (60-day lookback): {sessions_change_from_api}")
+                
+                # Recalculate sessions_change using same-duration period
+                sessions_change = 0
                 conversions_change = 0
                 revenue_change = 0
                 
                 if prev_traffic_overview:
                     prev_users = prev_traffic_overview.get("users", 0)
                     current_users = traffic_overview.get("users", 0) if traffic_overview else 0
+                    logger.info(f"[GA4 CHANGE CALCULATION] Users - Current: {current_users}, Previous: {prev_users}")
                     if prev_users > 0:
                         users_change = ((current_users - prev_users) / prev_users) * 100
+                        logger.info(f"[GA4 CHANGE CALCULATION] users_change calculated: {users_change}%")
+                    
+                    prev_sessions = prev_traffic_overview.get("sessions", 0)
+                    current_sessions = traffic_overview.get("sessions", 0) if traffic_overview else 0
+                    logger.info(f"[GA4 CHANGE CALCULATION] Sessions - Current: {current_sessions}, Previous: {prev_sessions}")
+                    if prev_sessions > 0:
+                        sessions_change = ((current_sessions - prev_sessions) / prev_sessions) * 100
+                        logger.info(f"[GA4 CHANGE CALCULATION] sessions_change recalculated (same-duration period): {sessions_change}%")
+                        logger.info(f"[GA4 CHANGE CALCULATION] Difference from API: {sessions_change - sessions_change_from_api}%")
                     
                     if prev_total_conversions > 0:
                         conversions_change = ((total_conversions - prev_total_conversions) / prev_total_conversions) * 100
+                        logger.info(f"[GA4 CHANGE CALCULATION] conversions_change calculated: {conversions_change}%")
                 
                 if traffic_overview:
                     # Calculate additional GA4 metrics
@@ -1052,11 +1081,26 @@ async def get_reporting_dashboard(
                     prev_engaged_sessions = prev_traffic_overview.get("engagedSessions", 0) if prev_traffic_overview else 0
                     
                     # Calculate percentage changes
+                    logger.info(f"[GA4 CHANGE CALCULATION] Calculating additional metric changes...")
                     bounce_rate_change = ((bounce_rate - prev_bounce_rate) / prev_bounce_rate * 100) if prev_bounce_rate > 0 else 0
+                    logger.info(f"[GA4 CHANGE CALCULATION] bounce_rate_change: {bounce_rate_change}% (Current: {bounce_rate}, Previous: {prev_bounce_rate})")
+                    
                     avg_session_duration_change = ((avg_session_duration - prev_avg_session_duration) / prev_avg_session_duration * 100) if prev_avg_session_duration > 0 else 0
+                    logger.info(f"[GA4 CHANGE CALCULATION] avg_session_duration_change: {avg_session_duration_change}% (Current: {avg_session_duration}, Previous: {prev_avg_session_duration})")
+                    
                     engagement_rate_change = ((engagement_rate - prev_engagement_rate) / prev_engagement_rate * 100) if prev_engagement_rate > 0 else 0
+                    logger.info(f"[GA4 CHANGE CALCULATION] engagement_rate_change: {engagement_rate_change}% (Current: {engagement_rate}, Previous: {prev_engagement_rate})")
+                    
                     new_users_change = ((new_users - prev_new_users) / prev_new_users * 100) if prev_new_users > 0 else 0
+                    logger.info(f"[GA4 CHANGE CALCULATION] new_users_change: {new_users_change}% (Current: {new_users}, Previous: {prev_new_users})")
+                    
                     engaged_sessions_change = ((engaged_sessions - prev_engaged_sessions) / prev_engaged_sessions * 100) if prev_engaged_sessions > 0 else 0
+                    logger.info(f"[GA4 CHANGE CALCULATION] engaged_sessions_change: {engaged_sessions_change}% (Current: {engaged_sessions}, Previous: {prev_engaged_sessions})")
+                    
+                    logger.info(f"[GA4 FINAL KPIs] Summary of all GA4 KPIs being returned:")
+                    logger.info(f"[GA4 FINAL KPIs] users: value={traffic_overview.get('users', 0)}, change={users_change}%")
+                    logger.info(f"[GA4 FINAL KPIs] sessions: value={traffic_overview.get('sessions', 0)}, change={sessions_change}% (RECALCULATED using same-duration period)")
+                    logger.info(f"[GA4 FINAL KPIs] new_users: value={new_users}, change={new_users_change}%")
                     
                     ga4_kpis = {
                         "users": {
@@ -1068,7 +1112,7 @@ async def get_reporting_dashboard(
                         },
                         "sessions": {
                             "value": traffic_overview.get("sessions", 0),
-                            "change": sessions_change,
+                            "change": sessions_change,  # Using recalculated value (same-duration period)
                             "source": "GA4",
                             "label": "Sessions",
                             "icon": "BarChart"
@@ -1432,7 +1476,8 @@ async def get_reporting_dashboard(
                     logger.warning(f"Brand {brand_id} has no Scrunch data at all. Skipping Scrunch KPIs.")
             
             # Helper function to calculate metrics from responses
-            def calculate_scrunch_metrics(responses_list, prompts_list=None):
+            # Note: responses_list should already be filtered by brand_id, but we validate for safety
+            def calculate_scrunch_metrics(responses_list, prompts_list=None, brand_id_filter=None):
                 if not responses_list:
                     return {
                         "total_citations": 0,
@@ -1467,8 +1512,17 @@ async def get_reporting_dashboard(
                 citations_by_prompt = {}  # {prompt_id: total_citations}
                 
                 # Calculate Top 10 Prompt Percentage
+                # Filter by brand_id: only count responses for the specified brand_id
                 prompt_counts = {}
+                valid_responses_for_brand = []
                 for r in responses_list:
+                    # Validate brand_id if provided
+                    if brand_id_filter is not None:
+                        response_brand_id = r.get("brand_id")
+                        if response_brand_id != brand_id_filter:
+                            continue  # Skip responses that don't match brand_id
+                    valid_responses_for_brand.append(r)
+                    
                     prompt_id = r.get("prompt_id")
                     if prompt_id:
                         prompt_counts[prompt_id] = prompt_counts.get(prompt_id, 0) + 1
@@ -1486,9 +1540,13 @@ async def get_reporting_dashboard(
                 
                 sorted_prompts = sorted(prompt_counts.items(), key=lambda x: x[1], reverse=True)[:10]
                 top10_count = sum(count for _, count in sorted_prompts)
-                top10_prompt_percentage = (top10_count / len(responses_list) * 100) if responses_list else 0
+                # Use valid_responses_for_brand count for percentage calculation
+                total_responses_count = len(valid_responses_for_brand) if brand_id_filter is not None else len(responses_list)
+                top10_prompt_percentage = (top10_count / total_responses_count * 100) if total_responses_count > 0 else 0
                 
-                for r in responses_list:
+                # Process only valid responses for brand_id
+                responses_to_process = valid_responses_for_brand if brand_id_filter is not None else responses_list
+                for r in responses_to_process:
                     # Count citations
                     citations = r.get("citations")
                     citation_count = 0
@@ -1513,7 +1571,7 @@ async def get_reporting_dashboard(
                             citations_by_prompt[prompt_id] = 0
                         citations_by_prompt[prompt_id] += citation_count
                     
-                    # Track brand presence
+                    # Track brand presence (only for responses matching brand_id)
                     if r.get("brand_present"):
                         brand_present_count += 1
                     
@@ -1540,7 +1598,8 @@ async def get_reporting_dashboard(
                     # as they require assumptions. Only 100% accurate source data is used.
                 
                 # Calculate metrics (100% from source data only)
-                brand_presence_rate = (brand_present_count / len(responses_list) * 100) if responses_list else 0
+                # Use valid_responses_for_brand count for rate calculation to ensure brand_id filtering
+                brand_presence_rate = (brand_present_count / total_responses_count * 100) if total_responses_count > 0 else 0
                 
                 total_sentiment_responses = sum(sentiment_scores.values())
                 if total_sentiment_responses > 0:
@@ -1568,15 +1627,24 @@ async def get_reporting_dashboard(
                         total_competitor_appearances = sum(competitor_visibility_count.values())
                         competitor_avg_visibility_percent = (total_competitor_appearances / total_responses_with_competitors) * 100
                 
+                logger.info(f"Total competitor appearances: {total_competitor_appearances}")
+                logger.info(f"Total responses with competitors: {total_responses_with_competitors}")
+                logger.info(f"Unique competitors: {unique_competitors}")
+                logger.info(f"Competitor visibility count: {competitor_visibility_count}")
+                logger.info(f"Total responses: {len(responses_list)}")
+                logger.info(f"Valid responses for brand: {len(valid_responses_for_brand)}")
+                logger.info(f"Total responses to process: {len(responses_to_process)}")
+                logger.info(f"Total responses: ${total_responses_count}")
+                logger.info(f"Total brand present: {brand_present_count}")
                 return {
                     "total_citations": total_citations,  # 100% from source
                     # NOTE: total_interactions, influencer_reach, engagement_rate, cost_per_engagement
                     # are NOT included as they require assumptions
-                    "brand_present_count": brand_present_count,  # 100% from source
-                    "brand_presence_rate": brand_presence_rate,  # 100% from source
-                    "sentiment_score": sentiment_score,  # 100% from source
-                    "prompt_search_volume": len(responses_list),  # 100% from source
-                    "top10_prompt_percentage": top10_prompt_percentage,  # 100% from source
+                    "brand_present_count": brand_present_count,  # 100% from source (filtered by brand_id)
+                    "brand_presence_rate": brand_presence_rate,  # 100% from source (calculated based on brand_id)
+                    "sentiment_score": sentiment_score,  # 100% from source (filtered by brand_id)
+                    "prompt_search_volume": total_responses_count,  # 100% from source (filtered by brand_id)
+                    "top10_prompt_percentage": top10_prompt_percentage,  # 100% from source (calculated based on brand_id)
                     # New KPIs
                     "competitive_benchmarking": {
                         "brand_visibility_percent": brand_visibility_percent,
@@ -1588,10 +1656,10 @@ async def get_reporting_dashboard(
             # This ensures all brands with Scrunch data show the section (with zero values if no data in date range)
             if has_any_scrunch_data:
                 # Calculate current period metrics (will be zero if no responses)
-                current_metrics = calculate_scrunch_metrics(responses, prompts)
+                current_metrics = calculate_scrunch_metrics(responses, prompts, brand_id)
                 
                 # Calculate previous period metrics (will be zero if no responses)
-                prev_metrics = calculate_scrunch_metrics(prev_responses, prompts)
+                prev_metrics = calculate_scrunch_metrics(prev_responses, prompts, brand_id)
                 
                 # Calculate percentage changes
                 # Each KPI is compared to its own previous value
@@ -1705,16 +1773,36 @@ async def get_reporting_dashboard(
                 }
                 
                 # Calculate Top Performing Prompts
+                # Filter by brand_id: only count responses for this brand_id and match with prompts for this brand_id
                 if prompts and responses:
+                    # Create a set of valid prompt IDs for this brand_id for quick lookup
+                    valid_prompt_ids = {prompt.get("id") for prompt in prompts if prompt.get("id")}
+                    
+                    # Count responses per prompt_id, but only for responses that:
+                    # 1. Have a prompt_id
+                    # 2. The prompt_id belongs to a prompt for this brand_id
+                    # 3. The response already belongs to this brand_id (from the query filter)
                     prompt_counts = {}
+                    total_responses_for_brand = 0
                     for r in responses:
+                        # Double-check brand_id matches (defensive programming)
+                        response_brand_id = r.get("brand_id")
+                        if response_brand_id != brand_id:
+                            continue  # Skip responses that don't match brand_id
+                        
+                        total_responses_for_brand += 1
                         prompt_id = r.get("prompt_id")
-                        if prompt_id:
+                        if prompt_id and prompt_id in valid_prompt_ids:
                             prompt_counts[prompt_id] = prompt_counts.get(prompt_id, 0) + 1
                     
-                    # Map prompts with response counts
+                    # Map prompts with response counts (only prompts for this brand_id)
                     top_prompts_data = []
                     for prompt in prompts:
+                        # Ensure prompt belongs to this brand_id
+                        prompt_brand_id = prompt.get("brand_id")
+                        if prompt_brand_id != brand_id:
+                            continue  # Skip prompts that don't match brand_id
+                        
                         prompt_id = prompt.get("id")
                         response_count = prompt_counts.get(prompt_id, 0)
                         if response_count > 0:
@@ -1723,6 +1811,7 @@ async def get_reporting_dashboard(
                                 "text": prompt.get("text") or prompt.get("prompt_text") or "N/A",
                                 "responseCount": response_count,
                                 "variants": response_count,  # Using response count as variants estimate
+                                "totalResponsesForBrand": total_responses_for_brand  # Total responses for this brand_id
                             })
                     
                     # Sort by response count and get top 10
@@ -2240,7 +2329,8 @@ async def get_scrunch_dashboard_data(
             
             # Import the calculate_scrunch_metrics function logic
             # (We'll use the same logic from the main endpoint)
-            def calculate_scrunch_metrics(responses_list, prompts_list=None):
+            # Note: responses_list should already be filtered by brand_id, but we validate for safety
+            def calculate_scrunch_metrics(responses_list, prompts_list=None, brand_id_filter=None):
                 if not responses_list:
                     return {
                         "total_citations": 0,
@@ -2265,7 +2355,16 @@ async def get_scrunch_dashboard_data(
                 citations_by_prompt = {}
                 prompt_counts = {}
                 
+                # Filter by brand_id: only count responses for the specified brand_id
+                valid_responses_for_brand = []
                 for r in responses_list:
+                    # Validate brand_id if provided
+                    if brand_id_filter is not None:
+                        response_brand_id = r.get("brand_id")
+                        if response_brand_id != brand_id_filter:
+                            continue  # Skip responses that don't match brand_id
+                    valid_responses_for_brand.append(r)
+                    
                     prompt_id = r.get("prompt_id")
                     if prompt_id:
                         prompt_counts[prompt_id] = prompt_counts.get(prompt_id, 0) + 1
@@ -2279,9 +2378,13 @@ async def get_scrunch_dashboard_data(
                 
                 sorted_prompts = sorted(prompt_counts.items(), key=lambda x: x[1], reverse=True)[:10]
                 top10_count = sum(count for _, count in sorted_prompts)
-                top10_prompt_percentage = (top10_count / len(responses_list) * 100) if responses_list else 0
+                # Use valid_responses_for_brand count for percentage calculation
+                total_responses_count = len(valid_responses_for_brand) if brand_id_filter is not None else len(responses_list)
+                top10_prompt_percentage = (top10_count / total_responses_count * 100) if total_responses_count > 0 else 0
                 
-                for r in responses_list:
+                # Process only valid responses for brand_id
+                responses_to_process = valid_responses_for_brand if brand_id_filter is not None else responses_list
+                for r in responses_to_process:
                     citations = r.get("citations")
                     citation_count = 0
                     if citations:
@@ -2323,7 +2426,9 @@ async def get_scrunch_dashboard_data(
                         else:
                             sentiment_scores["neutral"] += 1
                 
-                brand_presence_rate = (brand_present_count / len(responses_list) * 100) if responses_list else 0
+                # Use valid_responses_for_brand count for rate calculation
+                total_responses_count = len(valid_responses_for_brand) if brand_id_filter is not None else len(responses_list)
+                brand_presence_rate = (brand_present_count / total_responses_count * 100) if total_responses_count > 0 else 0
                 
                 total_sentiment_responses = sum(sentiment_scores.values())
                 if total_sentiment_responses > 0:
@@ -2348,7 +2453,7 @@ async def get_scrunch_dashboard_data(
                     "brand_present_count": brand_present_count,
                     "brand_presence_rate": brand_presence_rate,
                     "sentiment_score": sentiment_score,
-                    "prompt_search_volume": len(responses_list),
+                    "prompt_search_volume": total_responses_count,
                     "top10_prompt_percentage": top10_prompt_percentage,
                     "competitive_benchmarking": {
                         "brand_visibility_percent": brand_visibility_percent,
@@ -2357,8 +2462,8 @@ async def get_scrunch_dashboard_data(
                 }
             
             if has_any_scrunch_data:
-                current_metrics = calculate_scrunch_metrics(responses, prompts)
-                prev_metrics = calculate_scrunch_metrics(prev_responses, prompts)
+                current_metrics = calculate_scrunch_metrics(responses, prompts, brand_id)
+                prev_metrics = calculate_scrunch_metrics(prev_responses, prompts, brand_id)
                 
                 def calculate_change(current, previous):
                     if current == 0 and previous == 0:
@@ -2446,23 +2551,40 @@ async def get_scrunch_dashboard_data(
                 }
                 
                 # Get top performing prompts
+                # Filter by brand_id: only count responses for this brand_id and match with prompts for this brand_id
+                # Create a set of valid prompt IDs for this brand_id for quick lookup
+                valid_prompt_ids = {prompt.get("id") for prompt in prompts if prompt.get("id")}
+                
                 prompt_response_counts = {}
+                total_responses_for_brand = 0
                 for r in responses:
+                    # Double-check brand_id matches (defensive programming)
+                    response_brand_id = r.get("brand_id")
+                    if response_brand_id != brand_id:
+                        continue  # Skip responses that don't match brand_id
+                    
+                    total_responses_for_brand += 1
                     prompt_id = r.get("prompt_id")
-                    if prompt_id:
+                    # Only count if prompt_id belongs to a prompt for this brand_id
+                    if prompt_id and prompt_id in valid_prompt_ids:
                         prompt_response_counts[prompt_id] = prompt_response_counts.get(prompt_id, 0) + 1
                 
+                # Sort by response count and get top 10
                 top_prompts = sorted(prompt_response_counts.items(), key=lambda x: x[1], reverse=True)[:10]
                 top_performing_prompts = []
-                for idx, (prompt_id, count) in enumerate(top_prompts):
-                    prompt = next((p for p in prompts if p.get("id") == prompt_id), None)
+                for idx, (prompt_id, count) in enumerate(top_prompts, 1):
+                    # Find prompt and ensure it belongs to this brand_id
+                    prompt = next((p for p in prompts if p.get("id") == prompt_id and p.get("brand_id") == brand_id), None)
                     if prompt:
+                        # Count variants (responses with this prompt_id for this brand_id)
+                        variants = len([r for r in responses if r.get("prompt_id") == prompt_id and r.get("brand_id") == brand_id])
                         top_performing_prompts.append({
                             "id": prompt_id,
                             "text": prompt.get("text", "N/A"),
-                            "rank": idx + 1,
+                            "rank": idx,
                             "responseCount": count,
-                            "variants": len([r for r in responses if r.get("prompt_id") == prompt_id])
+                            "variants": variants,
+                            "totalResponsesForBrand": total_responses_for_brand  # Total responses for this brand_id
                         })
                 
                 scrunch_chart_data["top_performing_prompts"] = top_performing_prompts

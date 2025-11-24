@@ -43,10 +43,11 @@ export default function ChartCard({
       >
         <CardContent
           sx={{
-            p: { xs: 2, sm: 2.5, md: 3 },
+            p: { xs: 2.5, sm: 3, md: 3.5 },
             height: '100%',
             display: 'flex',
             flexDirection: 'column',
+            overflow: 'visible',
           }}
         >
           {(title || badge) && (
@@ -54,7 +55,8 @@ export default function ChartCard({
               display="flex"
               alignItems="center"
               justifyContent="space-between"
-              mb={2}
+              mb={2.5}
+              mt={0.5}
               sx={{
                 flexWrap: { xs: 'wrap', sm: 'nowrap' },
                 gap: { xs: 1, sm: 0 },
@@ -94,7 +96,7 @@ export default function ChartCard({
               )}
             </Box>
           )}
-          <Box sx={{ flex: 1, minHeight: 0 }}>{children}</Box>
+          <Box sx={{ flex: 1, minHeight: 0, overflow: 'visible' }}>{children}</Box>
         </CardContent>
       </Card>
     </motion.div>

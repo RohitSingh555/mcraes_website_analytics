@@ -165,10 +165,18 @@ class GA4APIClient:
             
             # Calculate month-over-month comparison
             # Get previous period data for comparison
+            # NOTE: This uses a FIXED 60-day lookback period, not the same duration as current period
             prev_start = (datetime.strptime(start_date, "%Y-%m-%d") - timedelta(days=60)).strftime("%Y-%m-%d")
             prev_end = (datetime.strptime(start_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
             
+            logger.info(f"[GA4 CLIENT] get_traffic_overview - Calculating change using FIXED 60-day lookback")
+            logger.info(f"[GA4 CLIENT] Current period: {start_date} to {end_date}")
+            logger.info(f"[GA4 CLIENT] Previous period (60-day lookback): {prev_start} to {prev_end}")
+            logger.info(f"[GA4 CLIENT] Current values - users: {totals.get('users')}, sessions: {totals.get('sessions')}, newUsers: {totals.get('newUsers')}")
+            
             try:
+                logger.info(f"[GA4 CLIENT] Making API call to Google Analytics Data API for previous period")
+                logger.info(f"[GA4 CLIENT] API Request: RunReportRequest with property={property_id}, date_range={prev_start} to {prev_end}")
                 prev_request = RunReportRequest(
                     property=f"properties/{property_id}",
                     date_ranges=[DateRange(start_date=prev_start, end_date=prev_end)],
@@ -181,6 +189,7 @@ class GA4APIClient:
                     ],
                 )
                 prev_response = client.run_report(prev_request)
+                logger.info(f"[GA4 CLIENT] Previous period API response received")
                 
                 prev_totals = {
                     "sessions": 0,
@@ -208,23 +217,31 @@ class GA4APIClient:
                     prev_totals["engagementRate"] = prev_totals["engagementRate"] / prev_count
                 
                 # Calculate percentage changes
+                logger.info(f"[GA4 CLIENT] Previous period values - sessions: {prev_totals.get('sessions')}, engagedSessions: {prev_totals.get('engagedSessions')}")
+                
                 if prev_totals["sessions"] > 0:
                     totals["sessionsChange"] = ((totals["sessions"] - prev_totals["sessions"]) / prev_totals["sessions"]) * 100
+                    logger.info(f"[GA4 CLIENT] sessionsChange calculated (60-day lookback): {totals['sessionsChange']}%")
+                    logger.info(f"[GA4 CLIENT] Formula: (({totals['sessions']} - {prev_totals['sessions']}) / {prev_totals['sessions']}) * 100")
                 else:
                     totals["sessionsChange"] = 0
+                    logger.info(f"[GA4 CLIENT] sessionsChange set to 0 (no previous sessions)")
                 
                 if prev_totals["engagedSessions"] > 0:
                     totals["engagedSessionsChange"] = ((totals["engagedSessions"] - prev_totals["engagedSessions"]) / prev_totals["engagedSessions"]) * 100
+                    logger.info(f"[GA4 CLIENT] engagedSessionsChange calculated: {totals['engagedSessionsChange']}%")
                 else:
                     totals["engagedSessionsChange"] = 0
                 
                 if prev_totals["averageSessionDuration"] > 0:
                     totals["avgSessionDurationChange"] = ((totals["averageSessionDuration"] - prev_totals["averageSessionDuration"]) / prev_totals["averageSessionDuration"]) * 100
+                    logger.info(f"[GA4 CLIENT] avgSessionDurationChange calculated: {totals['avgSessionDurationChange']}%")
                 else:
                     totals["avgSessionDurationChange"] = 0
                 
                 if prev_totals["engagementRate"] > 0:
                     totals["engagementRateChange"] = ((totals["engagementRate"] - prev_totals["engagementRate"]) / prev_totals["engagementRate"]) * 100
+                    logger.info(f"[GA4 CLIENT] engagementRateChange calculated: {totals['engagementRateChange']}%")
                 else:
                     totals["engagementRateChange"] = 0
             except Exception as e:

@@ -36,12 +36,12 @@ export default function LineChart({
   // Responsive height
   const chartHeight = height || (isMobile ? CHART_CONFIG.heights.mobile : isTablet ? CHART_CONFIG.heights.tablet : CHART_CONFIG.heights.desktop)
   
-  // Responsive margin
+  // Responsive margin - increased to prevent label clipping
   const chartMargin = margin || {
-    top: 10,
-    right: isMobile ? 10 : 30,
-    left: isMobile ? 10 : 20,
-    bottom: isMobile ? 40 : 5,
+    top: 15,
+    right: isMobile ? 15 : 40,
+    left: isMobile ? 15 : 30,
+    bottom: isMobile ? 50 : (data.length > 8 ? 60 : 40),
   }
   
   if (!data || data.length === 0) {
@@ -111,9 +111,10 @@ export default function LineChart({
           }}
           stroke={CHART_CONFIG.axis.stroke}
           tickFormatter={xAxisFormatter}
-          angle={isMobile && data.length > 5 ? -45 : 0}
-          textAnchor={isMobile && data.length > 5 ? 'end' : 'middle'}
-          height={isMobile && data.length > 5 ? 60 : undefined}
+          angle={0}
+          textAnchor="middle"
+          height={50}
+          interval="preserveStartEnd"
         />
         <YAxis 
           tick={{ 
@@ -121,7 +122,7 @@ export default function LineChart({
             fill: CHART_CONFIG.axis.stroke
           }}
           stroke={CHART_CONFIG.axis.stroke}
-          width={isMobile ? 40 : undefined}
+          width={isMobile ? 50 : 60}
         />
         <Tooltip 
           contentStyle={CHART_CONFIG.tooltip}
@@ -132,7 +133,8 @@ export default function LineChart({
         {showLegend && (
           <Legend 
             wrapperStyle={{ 
-              paddingTop: '10px',
+              paddingTop: '15px',
+              paddingBottom: '5px',
               fontSize: isMobile ? '0.75rem' : '0.875rem'
             }}
             iconType="line"

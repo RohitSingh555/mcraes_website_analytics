@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Box, Card, CardContent, Grid, Typography, CircularProgress, useTheme, alpha } from '@mui/material'
+import { TrendingUp as TrendingUpIcon, TrendingDown as TrendingDownIcon, Remove as RemoveIcon } from '@mui/icons-material'
 import { motion } from 'framer-motion'
 import PieChart from './PieChart'
 import BarChart from './BarChart'
@@ -42,10 +43,10 @@ export default function ScrunchVisualizations({ brandId, startDate, endDate }) {
           competitorData,
           timeSeriesData
         ] = await Promise.allSettled([
-          // Position distribution
+          // Position distribution - get average brand_position_score
           reportingAPI.queryScrunchAnalytics(
             brandId,
-            ['brand_position_score', 'responses'],
+            ['brand_position_score'],
             startDate,
             endDate
           ),
@@ -144,87 +145,261 @@ export default function ScrunchVisualizations({ brandId, startDate, endDate }) {
 
   return (
     <Grid container spacing={3}>
-      {/* Position Distribution */}
-      {data.positionDistribution && (
-        <Grid item xs={12} sm={6} md={4}>
-          <ChartCard
-            title="Brand Position Distribution"
-            badge="Scrunch"
-            badgeColor={CHART_COLORS.scrunch.primary}
-            height="100%"
-            animationDelay={0.1}
-          >
-            <Box>
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{ mb: 2, fontSize: '0.875rem' }}
-              >
-                Distribution of your brand's position in AI responses (Top 67-100%, Middle 34-66%, Bottom 0-33%)
-              </Typography>
-              <PieChart
-                data={data.positionDistribution}
-                height={280}
-                donut={true}
-                innerRadius={70}
-                outerRadius={100}
-                colors={[
-                  CHART_COLORS.success,
-                  CHART_COLORS.warning,
-                  CHART_COLORS.error,
-                  CHART_COLORS.secondary
-                ]}
-                formatter={(value, name) => [
-                  `${value.toLocaleString()} responses`,
-                  name
-                ]}
-                showLegend={true}
-              />
-            </Box>
-          </ChartCard>
-        </Grid>
-      )}
+      {/* Position Distribution - Simple Card Display */}
+      {data.positionDistribution !== null && data.positionDistribution !== undefined && (() => {
+        // Get the average brand_position_score directly from API
+        const positionScore = data.positionDistribution
+        
+        // Determine color and icon based on score ranges
+        let config
+        if (positionScore >= 67) {
+          config = { color: CHART_COLORS.success, icon: TrendingUpIcon, label: 'Top' }
+        } else if (positionScore >= 34) {
+          config = { color: CHART_COLORS.warning, icon: RemoveIcon, label: 'Middle' }
+        } else {
+          config = { color: CHART_COLORS.error, icon: TrendingDownIcon, label: 'Bottom' }
+        }
+        
+        const IconComponent = config.icon
+        
+        return (
+          <Grid item xs={12} sm={6} md={4}>
+            <ChartCard
+              title="Position (% of total)"
+              badge="Scrunch"
+              badgeColor={CHART_COLORS.scrunch.primary}
+              height="100%"
+              animationDelay={0.1}
+            >
+              <Box>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mb: 3, fontSize: '0.875rem' }}
+                >
+                  Where your brand is positioned in the AI responses, measured over the selected period.
+                </Typography>
+                
+                {/* Simple Metric Card Display */}
+                <Box 
+                  sx={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    py: 3
+                  }}
+                >
+                  {/* Icon */}
+                  <Box
+                    sx={{
+                      mb: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 64,
+                      height: 64,
+                      borderRadius: '50%',
+                      bgcolor: alpha(config.color, 0.1),
+                      border: `2px solid ${alpha(config.color, 0.3)}`
+                    }}
+                  >
+                    <IconComponent
+                      sx={{
+                        fontSize: 32,
+                        color: config.color
+                      }}
+                    />
+                  </Box>
+                  
+                  {/* Value */}
+                  <Typography
+                    variant="h3"
+                    fontWeight={700}
+                    sx={{
+                      fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' },
+                      color: config.color,
+                      mb: 1,
+                      lineHeight: 1.2
+                    }}
+                  >
+                    {positionScore.toFixed(1)}%
+                  </Typography>
+                  
+                  {/* Label */}
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontSize: { xs: '1rem', sm: '1.125rem', md: '1.25rem' },
+                      fontWeight: 600,
+                      color: 'text.primary'
+                    }}
+                  >
+                    {config.label}
+                  </Typography>
+                </Box>
+              </Box>
+            </ChartCard>
+          </Grid>
+        )
+      })()}
 
-      {/* Sentiment Distribution */}
-      {data.sentimentDistribution && (
-        <Grid item xs={12} sm={6} md={4}>
-          <ChartCard
-            title="Brand Sentiment Analysis"
-            badge="Scrunch"
-            badgeColor={CHART_COLORS.scrunch.primary}
-            height="100%"
-            animationDelay={0.2}
-          >
-            <Box>
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{ mb: 2, fontSize: '0.875rem' }}
-              >
-                Sentiment distribution across all AI responses mentioning your brand
-              </Typography>
-              <PieChart
-                data={data.sentimentDistribution}
-                height={280}
-                donut={true}
-                innerRadius={70}
-                outerRadius={100}
-                colors={[
-                  CHART_COLORS.success, // Positive
-                  CHART_COLORS.warning, // Mixed
-                  CHART_COLORS.error,   // Negative
-                  theme.palette.grey[400] // None
-                ]}
-                formatter={(value, name) => [
-                  `${value.toLocaleString()} responses`,
-                  name
-                ]}
-                showLegend={true}
-              />
-            </Box>
-          </ChartCard>
-        </Grid>
-      )}
+      {/* Sentiment Distribution - Simple Card Display */}
+      {data.sentimentDistribution && (() => {
+        // Find dominant sentiment category
+        const dominantSentiment = data.sentimentDistribution.reduce((prev, current) => 
+          (prev.value > current.value) ? prev : current
+        )
+        
+        // Calculate total and percentage
+        const total = data.sentimentDistribution.reduce((sum, item) => sum + (item.value || 0), 0)
+        const percentage = total > 0 ? ((dominantSentiment.value / total) * 100).toFixed(0) : 0
+        
+        // Sentiment config
+        const sentimentConfig = {
+          Positive: { color: CHART_COLORS.success, icon: TrendingUpIcon },
+          Mixed: { color: CHART_COLORS.warning, icon: RemoveIcon },
+          Negative: { color: CHART_COLORS.error, icon: TrendingDownIcon },
+          None: { color: theme.palette.grey[400], icon: RemoveIcon }
+        }
+        
+        const config = sentimentConfig[dominantSentiment.name] || { 
+          color: CHART_COLORS.secondary, 
+          icon: RemoveIcon 
+        }
+        const IconComponent = config.icon
+        
+        return (
+          <Grid item xs={12} sm={6} md={4}>
+            <ChartCard
+              title="Brand Sentiment Analysis"
+              badge="Scrunch"
+              badgeColor={CHART_COLORS.scrunch.primary}
+              height="100%"
+              animationDelay={0.2}
+            >
+              <Box>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mb: 3, fontSize: '0.875rem' }}
+                >
+                  Sentiment distribution across all AI responses mentioning your brand
+                </Typography>
+                
+                {/* Simple Metric Card Display */}
+                <Box 
+                  sx={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    py: 3
+                  }}
+                >
+                  {/* Icon */}
+                  <Box
+                    sx={{
+                      mb: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 64,
+                      height: 64,
+                      borderRadius: '50%',
+                      bgcolor: alpha(config.color, 0.1),
+                      border: `2px solid ${alpha(config.color, 0.3)}`
+                    }}
+                  >
+                    <IconComponent
+                      sx={{
+                        fontSize: 32,
+                        color: config.color
+                      }}
+                    />
+                  </Box>
+                  
+                  {/* Value */}
+                  <Typography
+                    variant="h3"
+                    fontWeight={700}
+                    sx={{
+                      fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' },
+                      color: config.color,
+                      mb: 1,
+                      lineHeight: 1.2
+                    }}
+                  >
+                    {percentage}%
+                  </Typography>
+                  
+                  {/* Label */}
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontSize: { xs: '1rem', sm: '1.125rem', md: '1.25rem' },
+                      fontWeight: 600,
+                      color: 'text.primary',
+                      mb: 2
+                    }}
+                  >
+                    {dominantSentiment.name}
+                  </Typography>
+                  
+                  {/* Breakdown */}
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      gap: 2,
+                      mt: 2,
+                      flexWrap: 'wrap',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    {data.sentimentDistribution.map((item) => {
+                      const itemConfig = sentimentConfig[item.name] || { 
+                        color: CHART_COLORS.secondary, 
+                        icon: RemoveIcon 
+                      }
+                      const itemTotal = data.sentimentDistribution.reduce((sum, i) => sum + (i.value || 0), 0)
+                      const itemPercentage = itemTotal > 0 ? ((item.value / itemTotal) * 100).toFixed(0) : 0
+                      return (
+                        <Box
+                          key={item.name}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                            opacity: item.value === 0 ? 0.5 : 1
+                          }}
+                        >
+                          <Box
+                            component={itemConfig.icon}
+                            sx={{
+                              fontSize: 14,
+                              color: itemConfig.color
+                            }}
+                          />
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              fontSize: '0.75rem',
+                              fontWeight: 500,
+                              color: 'text.secondary'
+                            }}
+                          >
+                            {item.name}: {itemPercentage}%
+                          </Typography>
+                        </Box>
+                      )
+                    })}
+                  </Box>
+                </Box>
+              </Box>
+            </ChartCard>
+          </Grid>
+        )
+      })()}
 
       {/* Platform Distribution */}
       {data.platformDistribution && (
@@ -309,7 +484,7 @@ export default function ScrunchVisualizations({ brandId, startDate, endDate }) {
             title="Competitive Presence Analysis"
             badge="Scrunch"
             badgeColor={CHART_COLORS.scrunch.primary}
-            height={450}
+            height={500}
             animationDelay={0.5}
           >
             <Box>
@@ -345,7 +520,7 @@ export default function ScrunchVisualizations({ brandId, startDate, endDate }) {
             title="Brand Presence Trend Over Time"
             badge="Scrunch"
             badgeColor={CHART_COLORS.scrunch.primary}
-            height={450}
+            height={500}
             animationDelay={0.6}
           >
             <Box>
@@ -393,23 +568,15 @@ function processPositionData(data) {
   if (!data) return null
   
   const items = data.items || (Array.isArray(data) ? data : [])
-  if (items.length === 0) return null
+  if (items.length === 0) {
+    return null
+  }
   
-  // Categorize position scores: Top (67-100), Middle (34-66), Bottom (0-33)
-  const distribution = { Top: 0, Middle: 0, Bottom: 0 }
+  // Get the average brand_position_score directly from API
+  // The API returns the average score when querying just the metric
+  const averageScore = items[0]?.brand_position_score || 0
   
-  items.forEach(item => {
-    const score = item.brand_position_score || 0
-    const responses = item.responses || 0
-    
-    if (score >= 67) distribution.Top += responses
-    else if (score >= 34) distribution.Middle += responses
-    else distribution.Bottom += responses
-  })
-  
-  return Object.entries(distribution)
-    .filter(([_, value]) => value > 0)
-    .map(([name, value]) => ({ name, value }))
+  return averageScore
 }
 
 function processPlatformData(data) {

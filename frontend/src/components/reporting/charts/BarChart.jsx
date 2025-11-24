@@ -42,12 +42,12 @@ export default function BarChart({
   // Responsive height
   const chartHeight = height || (isMobile ? CHART_CONFIG.heights.mobile : isTablet ? CHART_CONFIG.heights.tablet : CHART_CONFIG.heights.desktop)
   
-  // Responsive margin
+  // Responsive margin - increased to prevent label clipping
   const chartMargin = margin || {
-    top: 10,
-    right: isMobile ? 10 : 30,
-    left: horizontal ? (isMobile ? 80 : 120) : (isMobile ? 10 : 20),
-    bottom: horizontal ? 5 : (isMobile ? 60 : 40),
+    top: 15,
+    right: isMobile ? 15 : 40,
+    left: horizontal ? (isMobile ? 100 : 150) : (isMobile ? 15 : 30),
+    bottom: horizontal ? 10 : (isMobile ? 70 : 60),
   }
   
   if (!data || data.length === 0) {
@@ -134,7 +134,7 @@ export default function BarChart({
             <YAxis 
               dataKey={dataKey}
               type="category" 
-              width={isMobile ? 80 : 120}
+              width={isMobile ? 100 : 150}
               tick={{ 
                 fontSize: isMobile ? 10 : 11,
                 fill: CHART_CONFIG.axis.stroke
@@ -151,9 +151,10 @@ export default function BarChart({
                 fill: CHART_CONFIG.axis.stroke
               }}
               stroke={CHART_CONFIG.axis.stroke}
-              angle={isMobile && data.length > 5 ? -45 : (data.length > 8 ? -30 : 0)}
-              textAnchor={isMobile && data.length > 5 ? "end" : "middle"}
-              height={isMobile && data.length > 5 ? 60 : (data.length > 8 ? 50 : undefined)}
+              angle={0}
+              textAnchor="middle"
+              height={50}
+              interval="preserveStartEnd"
             />
             <YAxis 
               tick={{ 
@@ -174,7 +175,8 @@ export default function BarChart({
         {showLegend && (
           <Legend 
             wrapperStyle={{ 
-              paddingTop: '10px',
+              paddingTop: '15px',
+              paddingBottom: '5px',
               fontSize: isMobile ? '0.75rem' : '0.875rem'
             }}
             iconType="rect"
