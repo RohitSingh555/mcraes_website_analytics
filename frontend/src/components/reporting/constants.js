@@ -1,15 +1,17 @@
 // Color palette for charts - modern, accessible colors
 export const CHART_COLORS = {
-  primary: '#0f172a', // Slate 900
-  secondary: '#64748b', // Slate 500
+  primary: '#1e77b9', // McRAE Primary Blue
+  secondary: '#f4af46', // McRAE Secondary Orange
   success: '#10b981', // Emerald 500
   warning: '#f59e0b', // Amber 500
   error: '#ef4444', // Red 500
   info: '#3b82f6', // Blue 500
   
   // Extended palette for multiple series
+  // First two colors are primary and secondary for two-data-point charts
   palette: [
-    '#0f172a', // Slate 900 - Primary
+    '#1e77b9', // McRAE Primary Blue - Primary
+    '#f4af46', // McRAE Secondary Orange - Secondary
     '#3b82f6', // Blue 500
     '#10b981', // Emerald 500
     '#f59e0b', // Amber 500
@@ -41,10 +43,10 @@ export const CHART_COLORS = {
     secondary: '#f59e0b', // Amber
   },
   
-  // Comparison chart colors
+  // Comparison chart colors (for two-data-point charts like current vs previous)
   comparison: {
-    current: '#0f172a', // Current period - dark
-    previous: '#94a3b8', // Previous period - light gray
+    current: '#1e77b9', // Current period - McRAE Primary Blue
+    previous: '#f4af46', // Previous period - McRAE Secondary Orange
   },
 }
 

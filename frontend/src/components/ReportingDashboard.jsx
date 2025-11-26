@@ -31,6 +31,9 @@ import {
   TableHead,
   TableRow,
   TablePagination,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from "@mui/material";
 import {
   TrendingUp as TrendingUpIcon,
@@ -52,6 +55,8 @@ import {
   Share as ShareIcon,
   ContentCopy as ContentCopyIcon,
   Check as CheckIcon,
+  ExpandMore as ExpandMoreIcon,
+  Analytics as AnalyticsIcon,
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import {
@@ -114,7 +119,6 @@ const KPI_ORDER = [
   "brand_sentiment_score",
   "top10_prompt_percentage",
   "prompt_search_volume",
-  "keyword_ranking_change_and_volume",
   // New Scrunch KPIs
   // "competitive_benchmarking",
 ];
@@ -250,6 +254,7 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
   const [selectedKPIs, setSelectedKPIs] = useState(new Set(KPI_ORDER));
   const [tempSelectedKPIs, setTempSelectedKPIs] = useState(new Set(KPI_ORDER)); // For dialog
   const [showKPISelector, setShowKPISelector] = useState(false);
+  const [expandedSections, setExpandedSections] = useState(new Set(["ga4", "agency_analytics", "scrunch_ai", "brand_analytics", "advanced_analytics"])); // Track expanded accordion sections
   // Initialize with "Last 7 days" as default
   const getDefaultDates = () => {
     const end = new Date();
@@ -277,10 +282,14 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
   // Public KPI selections (loaded from database for public view)
   const [publicKPISelections, setPublicKPISelections] = useState(null);
   // Section visibility state (for authenticated users to configure)
-  const [visibleSections, setVisibleSections] = useState(new Set(["ga4", "scrunch_ai", "brand_analytics", "advanced_analytics", "performance_metrics"]));
-  const [tempVisibleSections, setTempVisibleSections] = useState(new Set(["ga4", "scrunch_ai", "brand_analytics", "advanced_analytics", "performance_metrics"])); // For dialog
+  const [visibleSections, setVisibleSections] = useState(new Set(["ga4", "agency_analytics", "scrunch_ai", "brand_analytics", "advanced_analytics"]));
+  const [tempVisibleSections, setTempVisibleSections] = useState(new Set(["ga4", "agency_analytics", "scrunch_ai", "brand_analytics", "advanced_analytics"])); // For dialog
+  // Chart/visualization selections (for each section)
+  const [selectedCharts, setSelectedCharts] = useState(new Set());
+  const [tempSelectedCharts, setTempSelectedCharts] = useState(new Set()); // For dialog
   // Public section visibility (loaded from database for public view)
   const [publicVisibleSections, setPublicVisibleSections] = useState(null);
+  const [publicSelectedCharts, setPublicSelectedCharts] = useState(null);
   const theme = useTheme();
 
   // Load KPI selections from database when brand changes (for authenticated users)
@@ -319,9 +328,20 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
           setTempVisibleSections(new Set(data.visible_sections));
         } else {
           // Default to all sections visible
-          const defaultSections = new Set(["ga4", "scrunch_ai", "brand_analytics", "advanced_analytics", "performance_metrics"]);
+          const defaultSections = new Set(["ga4", "agency_analytics", "scrunch_ai", "brand_analytics", "advanced_analytics"]);
           setVisibleSections(defaultSections);
           setTempVisibleSections(defaultSections);
+          // Select all KPIs and charts by default
+          setSelectedKPIs(new Set(KPI_ORDER));
+          setTempSelectedKPIs(new Set(KPI_ORDER));
+          const allCharts = new Set();
+          defaultSections.forEach((sectionKey) => {
+            getDashboardSectionCharts(sectionKey).forEach((chart) => {
+              allCharts.add(chart.key);
+            });
+          });
+          setSelectedCharts(allCharts);
+          setTempSelectedCharts(allCharts);
         }
       }
     } catch (err) {
@@ -329,9 +349,17 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
       // Fallback to all KPIs and sections on error
       setSelectedKPIs(new Set(KPI_ORDER));
       setTempSelectedKPIs(new Set(KPI_ORDER));
-      const defaultSections = new Set(["ga4", "scrunch_ai", "brand_analytics", "advanced_analytics", "performance_metrics"]);
+      const defaultSections = new Set(["ga4", "agency_analytics", "scrunch_ai", "brand_analytics", "advanced_analytics"]);
       setVisibleSections(defaultSections);
       setTempVisibleSections(defaultSections);
+      const allCharts = new Set();
+      defaultSections.forEach((sectionKey) => {
+        getDashboardSectionCharts(sectionKey).forEach((chart) => {
+          allCharts.add(chart.key);
+        });
+      });
+      setSelectedCharts(allCharts);
+      setTempSelectedCharts(allCharts);
     }
   };
 
@@ -340,6 +368,7 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
     
     try {
       const data = await reportingAPI.getKPISelections(selectedBrandId);
+      console.log("Loaded public KPI selections:", data);
       if (data) {
         // Load public KPI selections
         if (data.selected_kpis && data.selected_kpis.length > 0) {
@@ -351,9 +380,12 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
         
         // Load public section visibility
         if (data.visible_sections && data.visible_sections.length > 0) {
-          setPublicVisibleSections(new Set(data.visible_sections));
+          const sectionsSet = new Set(data.visible_sections);
+          console.log("Setting publicVisibleSections:", Array.from(sectionsSet));
+          setPublicVisibleSections(sectionsSet);
         } else {
           // If no selections saved, show all sections
+          console.log("No visible_sections in data, setting to null (show all)");
           setPublicVisibleSections(null);
         }
       }
@@ -492,11 +524,16 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
 
       // Check if data is valid and has content
       if (data && (data.kpis || data.chart_data || data.diagnostics)) {
+        const scrunchKPIs = data.kpis ? Object.keys(data.kpis).filter(k => data.kpis[k]?.source === "Scrunch") : [];
         console.log(`Dashboard data loaded for brand ${selectedBrandId}:`, {
           hasKPIs: !!data.kpis,
           kpiCount: data.kpis ? Object.keys(data.kpis).length : 0,
+          scrunchKPICount: scrunchKPIs.length,
+          scrunchKPIs: scrunchKPIs,
           hasChartData: !!data.chart_data,
           hasDiagnostics: !!data.diagnostics,
+          availableSources: data.available_sources,
+          diagnostics: data.diagnostics,
         });
         setDashboardData(data);
 
@@ -740,11 +777,11 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
   const getSourceLabel = (source) => {
     switch (source) {
       case "GA4":
-        return "GA4";
+        return "Google Analytics";
       case "AgencyAnalytics":
-        return "AgencyAnalytics";
+        return "Agency Analytics";
       case "Scrunch":
-        return "Scrunch";
+        return "Scrunch AI";
       default:
         return source;
     }
@@ -793,6 +830,176 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
     setTempSelectedKPIs(newSelected);
   };
 
+  // Helper function to get KPIs for a section (for Performance Metrics)
+  const getSectionKPIs = (sectionKey) => {
+    switch (sectionKey) {
+      case "GA4":
+        return KPI_ORDER.filter((key) => {
+          const metadata = KPI_METADATA[key];
+          return metadata && metadata.source === "GA4";
+        });
+      case "AgencyAnalytics":
+        return KPI_ORDER.filter((key) => {
+          const metadata = KPI_METADATA[key];
+          return metadata && metadata.source === "AgencyAnalytics";
+        });
+      case "Scrunch":
+        return KPI_ORDER.filter((key) => {
+          const metadata = KPI_METADATA[key];
+          return metadata && metadata.source === "Scrunch";
+        });
+      case "AdvancedAnalytics":
+        // Advanced Analytics Query might not have specific KPIs, return empty for now
+        // Or you can add specific KPIs if needed
+        return [];
+      default:
+        return [];
+    }
+  };
+
+  // Helper function to get KPIs displayed in each dashboard section
+  const getDashboardSectionKPIs = (sectionKey) => {
+    switch (sectionKey) {
+      case "ga4":
+        // GA4 section shows GA4 KPIs
+        return KPI_ORDER.filter((key) => {
+          const metadata = KPI_METADATA[key];
+          return metadata && metadata.source === "GA4";
+        });
+      case "agency_analytics":
+        // Agency Analytics section shows AgencyAnalytics KPIs
+        // Note: These are displayed as charts within GA4 section, but tracked separately
+        return KPI_ORDER.filter((key) => {
+          const metadata = KPI_METADATA[key];
+          return metadata && metadata.source === "AgencyAnalytics";
+        });
+      case "scrunch_ai":
+        // Scrunch AI section shows Scrunch KPIs
+        return KPI_ORDER.filter((key) => {
+          const metadata = KPI_METADATA[key];
+          return metadata && metadata.source === "Scrunch";
+        });
+      case "brand_analytics":
+        // Brand Analytics section doesn't show individual KPIs, just charts
+        return [];
+      case "advanced_analytics":
+        // Advanced Analytics Query section doesn't show individual KPIs
+        return [];
+      default:
+        return [];
+    }
+  };
+
+  // Helper function to get charts/visualizations for each dashboard section
+  const getDashboardSectionCharts = (sectionKey) => {
+    switch (sectionKey) {
+      case "ga4":
+        return [
+          { key: "ga4_traffic_overview", label: "Traffic Overview", description: "Overall traffic metrics" },
+          { key: "ga4_daily_comparison", label: "Daily Comparison", description: "Daily users, sessions, and conversions" },
+          { key: "ga4_channel_performance", label: "Channel Performance", description: "Traffic by marketing channel" },
+          { key: "ga4_device_category", label: "Device Category", description: "Traffic by device type" },
+          { key: "ga4_landing_pages", label: "Top Landing Pages", description: "Most visited pages" },
+        ];
+      case "agency_analytics":
+        return [
+          { key: "all_keywords_ranking", label: "Top Keywords Ranking", description: "SEO keyword rankings" },
+        ];
+      case "scrunch_ai":
+        return [
+          { key: "top_performing_prompts", label: "Top Performing Prompts", description: "Best performing AI prompts" },
+          { key: "scrunch_ai_insights", label: "Scrunch AI Insights", description: "AI-generated insights and recommendations" },
+        ];
+      case "brand_analytics":
+        return [
+          { key: "brand_analytics_charts", label: "Brand Analytics Charts", description: "Platform distribution, funnel stages, and sentiment" },
+        ];
+      case "advanced_analytics":
+        return [
+          { key: "scrunch_visualizations", label: "Advanced Query Visualizations", description: "Query API-based visualizations" },
+        ];
+      default:
+        return [];
+    }
+  };
+
+  // Helper functions for dashboard sections (similar to Performance Metrics)
+  const areAllDashboardSectionKPIsSelected = (sectionKey) => {
+    const sectionKPIs = getDashboardSectionKPIs(sectionKey);
+    if (sectionKPIs.length === 0) return false;
+    return sectionKPIs.every((kpi) => tempSelectedKPIs.has(kpi));
+  };
+
+  const areSomeDashboardSectionKPIsSelected = (sectionKey) => {
+    const sectionKPIs = getDashboardSectionKPIs(sectionKey);
+    if (sectionKPIs.length === 0) return false;
+    const selectedCount = sectionKPIs.filter((kpi) => tempSelectedKPIs.has(kpi)).length;
+    return selectedCount > 0 && selectedCount < sectionKPIs.length;
+  };
+
+  const handleDashboardSectionKPIsChange = (sectionKey, checked) => {
+    const sectionKPIs = getDashboardSectionKPIs(sectionKey);
+    const newSelected = new Set(tempSelectedKPIs);
+    
+    if (checked) {
+      sectionKPIs.forEach((kpi) => {
+        newSelected.add(kpi);
+      });
+    } else {
+      sectionKPIs.forEach((kpi) => {
+        newSelected.delete(kpi);
+      });
+    }
+    
+    setTempSelectedKPIs(newSelected);
+  };
+
+  // Helper function to check if all KPIs in a section are selected
+  const areAllSectionKPIsSelected = (sectionKey) => {
+    const sectionKPIs = getSectionKPIs(sectionKey);
+    if (sectionKPIs.length === 0) return false;
+    return sectionKPIs.every((kpi) => tempSelectedKPIs.has(kpi));
+  };
+
+  // Helper function to check if some KPIs in a section are selected (indeterminate state)
+  const areSomeSectionKPIsSelected = (sectionKey) => {
+    const sectionKPIs = getSectionKPIs(sectionKey);
+    if (sectionKPIs.length === 0) return false;
+    const selectedCount = sectionKPIs.filter((kpi) => tempSelectedKPIs.has(kpi)).length;
+    return selectedCount > 0 && selectedCount < sectionKPIs.length;
+  };
+
+  // Handle parent section checkbox change
+  const handleSectionKPIsChange = (sectionKey, checked) => {
+    const sectionKPIs = getSectionKPIs(sectionKey);
+    const newSelected = new Set(tempSelectedKPIs);
+    
+    if (checked) {
+      // Select all KPIs in this section
+      sectionKPIs.forEach((kpi) => {
+        newSelected.add(kpi);
+      });
+    } else {
+      // Deselect all KPIs in this section
+      sectionKPIs.forEach((kpi) => {
+        newSelected.delete(kpi);
+      });
+    }
+    
+    setTempSelectedKPIs(newSelected);
+  };
+
+  // Handle accordion expand/collapse
+  const handleAccordionChange = (sectionKey) => (event, isExpanded) => {
+    const newExpanded = new Set(expandedSections);
+    if (isExpanded) {
+      newExpanded.add(sectionKey);
+    } else {
+      newExpanded.delete(sectionKey);
+    }
+    setExpandedSections(newExpanded);
+  };
+
   const handleSelectAll = () => {
     // Select all available KPIs
     const availableKPIs = dashboardData?.kpis
@@ -809,12 +1016,13 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
     if (!selectedBrandId) return;
     
     try {
-      // Save to database (both KPIs and sections)
+      // Save to database (KPIs, sections, and charts)
       await reportingAPI.saveKPISelections(selectedBrandId, tempSelectedKPIs, Array.from(tempVisibleSections));
       setSelectedKPIs(new Set(tempSelectedKPIs));
       setVisibleSections(new Set(tempVisibleSections));
+      setSelectedCharts(new Set(tempSelectedCharts));
       setShowKPISelector(false);
-      console.log("KPI and section selections saved successfully");
+      console.log("KPI, section, and chart selections saved successfully");
     } catch (err) {
       console.error("Error saving KPI selections:", err);
       setError("Failed to save KPI and section selections. Please try again.");
@@ -825,6 +1033,9 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
     // Initialize temp selection with current selection
     setTempSelectedKPIs(new Set(selectedKPIs));
     setTempVisibleSections(new Set(visibleSections));
+    setTempSelectedCharts(new Set(selectedCharts));
+    // Expand all sections by default
+    setExpandedSections(new Set(["ga4", "agency_analytics", "scrunch_ai", "brand_analytics", "advanced_analytics"]));
     setShowKPISelector(true);
   };
 
@@ -844,20 +1055,51 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
 
   const handleSectionChange = (sectionKey, checked) => {
     const newSections = new Set(tempVisibleSections);
+    const newSelectedKPIs = new Set(tempSelectedKPIs);
+    const newSelectedCharts = new Set(tempSelectedCharts);
+    
+    // Get all KPIs and charts for this section
+    const sectionKPIs = getDashboardSectionKPIs(sectionKey);
+    const sectionCharts = getDashboardSectionCharts(sectionKey);
+    
     if (checked) {
+      // Enable section and all its children (KPIs + charts)
       newSections.add(sectionKey);
+      sectionKPIs.forEach((kpi) => newSelectedKPIs.add(kpi));
+      sectionCharts.forEach((chart) => newSelectedCharts.add(chart.key));
     } else {
+      // Disable section and all its children (KPIs + charts)
       newSections.delete(sectionKey);
+      sectionKPIs.forEach((kpi) => newSelectedKPIs.delete(kpi));
+      sectionCharts.forEach((chart) => newSelectedCharts.delete(chart.key));
     }
+    
     setTempVisibleSections(newSections);
+    setTempSelectedKPIs(newSelectedKPIs);
+    setTempSelectedCharts(newSelectedCharts);
   };
 
   const handleSelectAllSections = () => {
-    setTempVisibleSections(new Set(["ga4", "scrunch_ai", "brand_analytics", "advanced_analytics", "performance_metrics"]));
+    const allSections = new Set(["ga4", "agency_analytics", "scrunch_ai", "brand_analytics", "advanced_analytics"]);
+    const allKPIs = new Set(KPI_ORDER);
+    const allCharts = new Set();
+    
+    // Get all charts from all sections
+    allSections.forEach((sectionKey) => {
+      getDashboardSectionCharts(sectionKey).forEach((chart) => {
+        allCharts.add(chart.key);
+      });
+    });
+    
+    setTempVisibleSections(allSections);
+    setTempSelectedKPIs(allKPIs);
+    setTempSelectedCharts(allCharts);
   };
 
   const handleDeselectAllSections = () => {
     setTempVisibleSections(new Set());
+    setTempSelectedKPIs(new Set());
+    setTempSelectedCharts(new Set());
   };
 
   // Get KPIs in the correct order, filtered by selection
@@ -897,19 +1139,40 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
           alignItems="center"
           mb={2}
         >
-          <Typography
-            variant="h4"
-            fontWeight={700}
-            sx={{
-              fontSize: "1.75rem",
-              letterSpacing: "-0.02em",
-              color: "text.primary",
-            }}
-          >
-            {isPublic && publicBrandInfo
-              ? publicBrandInfo.name
-              : "Unified Reporting Dashboard"}
-          </Typography>
+          <Box display="flex" alignItems="center" gap={2}>
+            {/* Show brand logo in public mode */}
+            {isPublic && publicBrandInfo?.logo_url && (
+              <Box
+                component="img"
+                src={publicBrandInfo.logo_url}
+                alt={`${publicBrandInfo.name} logo`}
+                sx={{
+                  maxHeight: 56,
+                  maxWidth: 240,
+                  height: 'auto',
+                  width: 'auto',
+                  objectFit: 'contain',
+                  borderRadius: 1,
+                }}
+              />
+            )}
+            {/* Show brand name only if no logo, or show both if logo exists */}
+            {(!isPublic || !publicBrandInfo?.logo_url) && (
+              <Typography
+                variant="h4"
+                fontWeight={700}
+                sx={{
+                  fontSize: "1.75rem",
+                  letterSpacing: "-0.02em",
+                  color: "text.primary",
+                }}
+              >
+                {isPublic && publicBrandInfo
+                  ? publicBrandInfo.name
+                  : "Unified Reporting Dashboard"}
+              </Typography>
+            )}
+          </Box>
           <Box display="flex" gap={1.5}>
             {!isPublic && (
               <IconButton
@@ -2858,6 +3121,20 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
           <Box>
             {/* Scrunch AI Section - Show independently if Scrunch data is available */}
             {(() => {
+              // Check section visibility first
+              const sectionVisible = isSectionVisible("scrunch_ai");
+              console.log("Scrunch AI section visibility check:", {
+                isPublic,
+                sectionVisible,
+                publicVisibleSections: publicVisibleSections ? Array.from(publicVisibleSections) : null,
+                hasDashboardData: !!dashboardData,
+                dashboardKPICount: dashboardData?.kpis ? Object.keys(dashboardData.kpis).length : 0,
+              });
+
+              if (!sectionVisible) {
+                return null;
+              }
+
               // Check if we have Scrunch data from separate endpoint
               const hasScrunchData =
                 scrunchData?.kpis && Object.keys(scrunchData.kpis).length > 0;
@@ -2885,15 +3162,18 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                 hasScrunchFromMain;
 
               // Debug logging
-              if (shouldShow) {
-                console.log("Scrunch section should show:", {
-                  loadingScrunch,
-                  hasScrunchData,
-                  hasScrunchChartData,
-                  scrunchKPIsFromMain: scrunchKPIsFromMain.length,
-                  hasScrunchFromMain,
-                });
-              }
+              console.log("Scrunch section data check:", {
+                loadingScrunch,
+                hasScrunchData,
+                hasScrunchChartData,
+                scrunchKPIsFromMain: scrunchKPIsFromMain.length,
+                scrunchKPIsFromMainKeys: scrunchKPIsFromMain,
+                hasScrunchFromMain,
+                shouldShow,
+                dashboardDataKeys: dashboardData?.kpis ? Object.keys(dashboardData.kpis) : [],
+                hasTopPrompts: !!dashboardData?.chart_data?.top_performing_prompts?.length,
+                hasInsights: !!dashboardData?.chart_data?.scrunch_ai_insights?.length,
+              });
 
               return shouldShow;
             })() && (
@@ -2906,10 +3186,12 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                     {/* Use scrunchData if available, otherwise fall back to dashboardData */}
                     {(() => {
                       // Prefer scrunchData, but fall back to dashboardData if scrunchData doesn't have KPIs
+                      // In public mode, scrunchData is never loaded, so always use dashboardData
                       let scrunchKPIs = {};
                       let scrunchChartData = {};
 
                       if (
+                        !isPublic &&
                         scrunchData?.kpis &&
                         Object.keys(scrunchData.kpis).length > 0
                       ) {
@@ -2922,6 +3204,7 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                         );
                       } else if (dashboardData?.kpis) {
                         // Filter only Scrunch KPIs from dashboardData
+                        // This is the primary source for public mode
                         const scrunchKeys = Object.keys(
                           dashboardData.kpis
                         ).filter((k) => {
@@ -2935,11 +3218,17 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                           });
                           scrunchChartData = dashboardData.chart_data || {};
                           console.log(
-                            "Using Scrunch data from main endpoint (fallback):",
+                            `Using Scrunch data from main endpoint ${isPublic ? '(public mode)' : '(fallback)'}:`,
                             scrunchKeys.length,
-                            "KPIs"
+                            "KPIs:",
+                            scrunchKeys
                           );
+                        } else {
+                          console.warn("No Scrunch KPIs found in dashboardData.kpis. Available KPIs:", 
+                            dashboardData.kpis ? Object.keys(dashboardData.kpis) : []);
                         }
+                      } else {
+                        console.warn("No dashboardData.kpis available");
                       }
 
                       // Only render if we have actual data
@@ -4092,23 +4381,12 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
             <Typography variant="h6" fontWeight={600}>
               Select KPIs for Public View
             </Typography>
-            <Box display="flex" gap={1}>
-              <Button size="small" onClick={handleSelectAll} variant="outlined">
-                Select All
-              </Button>
-              <Button
-                size="small"
-                onClick={handleDeselectAll}
-                variant="outlined"
-              >
-                Deselect All
-              </Button>
-            </Box>
+            
           </Box>
         </DialogTitle>
         <DialogContent dividers sx={{ maxHeight: 600, overflow: "auto" }}>
           <Box>
-            {/* Section Visibility Controls */}
+            {/* Section Visibility Controls - Nested Structure */}
             <Box mb={4} pb={3} borderBottom={`1px solid ${theme.palette.divider}`}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                 <Typography
@@ -4131,162 +4409,341 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                 </Box>
               </Box>
               <Typography variant="body2" color="text.secondary" mb={2} sx={{ fontSize: "0.875rem" }}>
-                Choose which sections should be visible in the public dashboard view.
+                Choose which sections should be visible in the public dashboard view. Each section shows specific KPIs and visualizations.
               </Typography>
-              <Box display="flex" flexDirection="column" gap={1.5}>
-                {[
-                  { key: "ga4", label: "Google Analytics 4", description: "Website traffic and engagement metrics" },
-                  { key: "scrunch_ai", label: "Scrunch AI", description: "AI platform presence and engagement metrics" },
-                  { key: "brand_analytics", label: "Brand Analytics Insights", description: "Platform distribution, funnel stages, and sentiment analysis" },
-                  { key: "advanced_analytics", label: "Advanced Analytics (Query API)", description: "Detailed Scrunch AI visualizations and insights" },
-                  { key: "performance_metrics", label: "All Performance Metrics", description: "Individual KPI cards from all data sources" },
-                ].map((section) => (
-                  <FormControlLabel
+
+              {/* Nested Dashboard Section Selection with Accordion */}
+              {[
+                { key: "ga4", label: "Google Analytics", description: "Website traffic and engagement metrics", icon: AnalyticsIcon, color: getSourceColor("GA4") },
+                { key: "agency_analytics", label: "Agency Analytics", description: "SEO and keyword ranking metrics (shown in GA4 section)", icon: AnalyticsIcon, color: getSourceColor("AgencyAnalytics") },
+                { key: "scrunch_ai", label: "Scrunch AI", description: "AI platform presence and engagement metrics", icon: AnalyticsIcon, color: getSourceColor("Scrunch") },
+                { key: "brand_analytics", label: "Brand Analytics Insights", description: "Platform distribution, funnel stages, and sentiment analysis", icon: AnalyticsIcon, color: theme.palette.primary.main },
+                { key: "advanced_analytics", label: "Advanced Analytics Query", description: "Detailed Scrunch AI visualizations and insights", icon: AnalyticsIcon, color: theme.palette.secondary.main },
+              ].map((section) => {
+                const sectionKPIs = getDashboardSectionKPIs(section.key);
+                const sectionCharts = getDashboardSectionCharts(section.key);
+                const selectedKPICount = sectionKPIs.filter((k) => tempSelectedKPIs.has(k)).length;
+                const totalKPICount = sectionKPIs.length;
+                const selectedChartCount = sectionCharts.filter((c) => tempSelectedCharts.has(c.key)).length;
+                const totalChartCount = sectionCharts.length;
+                const isExpanded = expandedSections.has(section.key);
+                const allKPIsSelected = areAllDashboardSectionKPIsSelected(section.key);
+                const someKPIsSelected = areSomeDashboardSectionKPIsSelected(section.key);
+                const allChartsSelected = sectionCharts.length > 0 && sectionCharts.every((c) => tempSelectedCharts.has(c.key));
+                const someChartsSelected = sectionCharts.length > 0 && sectionCharts.some((c) => tempSelectedCharts.has(c.key)) && !allChartsSelected;
+                const SectionIcon = section.icon;
+
+                return (
+                  <Accordion
                     key={section.key}
-                    control={
-                      <Checkbox
-                        checked={tempVisibleSections.has(section.key)}
-                        onChange={(e) => handleSectionChange(section.key, e.target.checked)}
-                        sx={{
-                          color: theme.palette.primary.main,
-                          "&.Mui-checked": {
-                            color: theme.palette.primary.main,
-                          },
-                        }}
-                      />
-                    }
-                    label={
-                      <Box>
-                        <Typography variant="body2" fontWeight={600}>
-                          {section.label}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.75rem" }}>
-                          {section.description}
-                        </Typography>
-                      </Box>
-                    }
+                    expanded={isExpanded}
+                    onChange={handleAccordionChange(section.key)}
                     sx={{
-                      mb: 0.5,
-                      width: "100%",
-                      alignItems: "flex-start",
-                    }}
-                  />
-                ))}
-              </Box>
-            </Box>
-
-            {/* KPI Selection Controls */}
-            <Box mb={2}>
-              <Typography
-                variant="subtitle1"
-                fontWeight={700}
-                mb={2}
-                sx={{
-                  fontSize: "1rem",
-                  letterSpacing: "-0.01em",
-                }}
-              >
-                Performance Metrics (KPIs)
-              </Typography>
-              <Typography variant="body2" color="text.secondary" mb={2} sx={{ fontSize: "0.875rem" }}>
-                Choose which individual KPIs should be visible in the "All Performance Metrics" section.
-              </Typography>
-            </Box>
-            {/* Group KPIs by source */}
-            {["GA4", "AgencyAnalytics", "Scrunch"].map((source) => {
-              const sourceKPIs = KPI_ORDER.filter((key) => {
-                const metadata = KPI_METADATA[key];
-                return metadata && metadata.source === source;
-              });
-
-              return (
-                <Box key={source} mb={3}>
-                  <Typography
-                    variant="subtitle1"
-                    fontWeight={600}
-                    mb={1.5}
-                    sx={{
-                      color: getSourceColor(source),
-                      textTransform: "uppercase",
-                      fontSize: "0.75rem",
-                      letterSpacing: "0.05em",
+                      mb: 1.5,
+                      borderRadius: 2,
+                      border: `1px solid ${theme.palette.divider}`,
+                      boxShadow: "none",
+                      "&:before": {
+                        display: "none",
+                      },
+                      "&.Mui-expanded": {
+                        margin: "0 0 12px 0",
+                      },
                     }}
                   >
-                    {source} (
-                    {sourceKPIs.filter((k) => tempSelectedKPIs.has(k)).length} /{" "}
-                    {sourceKPIs.length})
-                  </Typography>
-                  <Box display="flex" flexDirection="column" gap={1}>
-                    {sourceKPIs.map((key) => {
-                      const metadata = KPI_METADATA[key];
-                      const kpi = dashboardData?.kpis?.[key];
-                      const isAvailable = !!kpi;
-
-                      return (
-                        <FormControlLabel
-                          key={key}
-                          control={
-                            <Checkbox
-                              checked={tempSelectedKPIs.has(key)}
-                              onChange={(e) =>
-                                handleKPIChange(key, e.target.checked)
-                              }
-                              disabled={!isAvailable}
+                    <AccordionSummary
+                      expandIcon={<ExpandMoreIcon sx={{ color: section.color }} />}
+                      sx={{
+                        px: 2,
+                        py: 1.5,
+                        "&.Mui-expanded": {
+                          minHeight: 48,
+                        },
+                        "& .MuiAccordionSummary-content": {
+                          margin: "12px 0",
+                          "&.Mui-expanded": {
+                            margin: "12px 0",
+                          },
+                        },
+                      }}
+                    >
+                      <Box
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="space-between"
+                        width="100%"
+                        pr={2}
+                      >
+                        <Box display="flex" alignItems="center" gap={1.5} flex={1}>
+                          <Checkbox
+                            checked={tempVisibleSections.has(section.key)}
+                            onChange={(e) => handleSectionChange(section.key, e.target.checked)}
+                            onClick={(e) => e.stopPropagation()}
+                            sx={{
+                              color: section.color,
+                              "&.Mui-checked": {
+                                color: section.color,
+                              },
+                            }}
+                          />
+                          <SectionIcon
+                            sx={{
+                              fontSize: 20,
+                              color: section.color,
+                            }}
+                          />
+                          <Box>
+                            <Typography
+                              variant="subtitle1"
+                              fontWeight={600}
                               sx={{
-                                color: getSourceColor(source),
-                                "&.Mui-checked": {
-                                  color: getSourceColor(source),
-                                },
-                                "&.Mui-disabled": {
-                                  color: theme.palette.grey[400],
-                                },
+                                fontSize: "0.9375rem",
+                                color: "text.primary",
                               }}
-                            />
-                          }
-                          label={
-                            <Box
-                              display="flex"
-                              alignItems="center"
-                              justifyContent="space-between"
-                              width="100%"
                             >
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>
-                                  {metadata.label}
-                                </Typography>
-                                <Typography
-                                  variant="caption"
-                                  color="text.secondary"
-                                >
-                                  {metadata.source}
-                                </Typography>
-                              </Box>
-                              {!isAvailable && (
-                                <Chip
-                                  label="Not Available"
+                              {section.label}
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              sx={{
+                                fontSize: "0.75rem",
+                              }}
+                            >
+                              {section.description}
+                              {totalKPICount > 0 && ` • ${selectedKPICount} of ${totalKPICount} KPIs`}
+                              {totalChartCount > 0 && ` • ${selectedChartCount} of ${totalChartCount} charts`}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Box>
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                      <Box sx={{ pl: 4.5 }}>
+                        {/* KPIs Section */}
+                        {sectionKPIs.length > 0 && (
+                          <Box mb={sectionCharts.length > 0 ? 3 : 0}>
+                            <Box display="flex" alignItems="center" justifyContent="space-between" mb={1.5}>
+                              <Typography
+                                variant="body2"
+                                fontWeight={600}
+                                sx={{ fontSize: "0.875rem" }}
+                              >
+                                KPIs displayed in this section:
+                              </Typography>
+                              <Box display="flex" gap={1}>
+                                <Checkbox
+                                  checked={allKPIsSelected}
+                                  indeterminate={someKPIsSelected}
+                                  onChange={(e) =>
+                                    handleDashboardSectionKPIsChange(section.key, e.target.checked)
+                                  }
                                   size="small"
                                   sx={{
-                                    height: 20,
-                                    fontSize: "0.7rem",
-                                    bgcolor: theme.palette.grey[100],
-                                    color: theme.palette.grey[600],
+                                    color: section.color,
+                                    "&.Mui-checked": {
+                                      color: section.color,
+                                    },
+                                    "&.MuiCheckbox-indeterminate": {
+                                      color: section.color,
+                                    },
                                   }}
                                 />
-                              )}
+                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.75rem" }}>
+                                  {allKPIsSelected ? "Deselect All" : someKPIsSelected ? "Select All" : "Select All"}
+                                </Typography>
+                              </Box>
                             </Box>
-                          }
-                          sx={{
-                            mb: 0.5,
-                            width: "100%",
-                            opacity: isAvailable ? 1 : 0.6,
-                          }}
-                        />
-                      );
-                    })}
-                  </Box>
-                </Box>
-              );
-            })}
+                            <Box display="flex" flexDirection="column" gap={1}>
+                              {sectionKPIs.map((key) => {
+                                const metadata = KPI_METADATA[key];
+                                const kpi = dashboardData?.kpis?.[key];
+                                const isAvailable = !!kpi;
+
+                                return (
+                                  <FormControlLabel
+                                    key={key}
+                                    control={
+                                      <Checkbox
+                                        checked={tempSelectedKPIs.has(key)}
+                                        onChange={(e) =>
+                                          handleKPIChange(key, e.target.checked)
+                                        }
+                                        disabled={!isAvailable}
+                                        size="small"
+                                        sx={{
+                                          color: section.color,
+                                          "&.Mui-checked": {
+                                            color: section.color,
+                                          },
+                                          "&.Mui-disabled": {
+                                            color: theme.palette.grey[400],
+                                          },
+                                        }}
+                                      />
+                                    }
+                                    label={
+                                      <Box
+                                        display="flex"
+                                        alignItems="center"
+                                        justifyContent="space-between"
+                                        width="100%"
+                                      >
+                                        <Box>
+                                          <Typography
+                                            variant="body2"
+                                            fontWeight={500}
+                                            sx={{ fontSize: "0.875rem" }}
+                                          >
+                                            {metadata.label}
+                                          </Typography>
+                                          <Typography
+                                            variant="caption"
+                                            color="text.secondary"
+                                            sx={{ fontSize: "0.7rem" }}
+                                          >
+                                            {metadata.source}
+                                          </Typography>
+                                        </Box>
+                                        {!isAvailable && (
+                                          <Chip
+                                            label="Not Available"
+                                            size="small"
+                                            sx={{
+                                              height: 18,
+                                              fontSize: "0.65rem",
+                                              bgcolor: theme.palette.grey[100],
+                                              color: theme.palette.grey[600],
+                                            }}
+                                          />
+                                        )}
+                                      </Box>
+                                    }
+                                    sx={{
+                                      mb: 0.5,
+                                      width: "100%",
+                                      opacity: isAvailable ? 1 : 0.6,
+                                      alignItems: "flex-start",
+                                    }}
+                                  />
+                                );
+                              })}
+                            </Box>
+                          </Box>
+                        )}
+
+                        {/* Charts/Visualizations Section */}
+                        {sectionCharts.length > 0 && (
+                          <Box>
+                            <Box display="flex" alignItems="center" justifyContent="space-between" mb={1.5}>
+                              <Typography
+                                variant="body2"
+                                fontWeight={600}
+                                sx={{ fontSize: "0.875rem" }}
+                              >
+                                Charts & Visualizations:
+                              </Typography>
+                              <Box display="flex" gap={1}>
+                                <Checkbox
+                                  checked={allChartsSelected}
+                                  indeterminate={someChartsSelected}
+                                  onChange={(e) => {
+                                    const newSelected = new Set(tempSelectedCharts);
+                                    if (e.target.checked) {
+                                      sectionCharts.forEach((chart) => newSelected.add(chart.key));
+                                    } else {
+                                      sectionCharts.forEach((chart) => newSelected.delete(chart.key));
+                                    }
+                                    setTempSelectedCharts(newSelected);
+                                  }}
+                                  size="small"
+                                  sx={{
+                                    color: section.color,
+                                    "&.Mui-checked": {
+                                      color: section.color,
+                                    },
+                                    "&.MuiCheckbox-indeterminate": {
+                                      color: section.color,
+                                    },
+                                  }}
+                                />
+                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.75rem" }}>
+                                  {allChartsSelected ? "Deselect All" : someChartsSelected ? "Select All" : "Select All"}
+                                </Typography>
+                              </Box>
+                            </Box>
+                            <Box display="flex" flexDirection="column" gap={1}>
+                              {sectionCharts.map((chart) => {
+                                const isChartSelected = tempSelectedCharts.has(chart.key);
+                                return (
+                                  <FormControlLabel
+                                    key={chart.key}
+                                    control={
+                                      <Checkbox
+                                        checked={isChartSelected}
+                                        onChange={(e) => {
+                                          const newSelected = new Set(tempSelectedCharts);
+                                          if (e.target.checked) {
+                                            newSelected.add(chart.key);
+                                          } else {
+                                            newSelected.delete(chart.key);
+                                          }
+                                          setTempSelectedCharts(newSelected);
+                                        }}
+                                        size="small"
+                                        sx={{
+                                          color: section.color,
+                                          "&.Mui-checked": {
+                                            color: section.color,
+                                          },
+                                        }}
+                                      />
+                                    }
+                                    label={
+                                      <Box>
+                                        <Typography
+                                          variant="body2"
+                                          fontWeight={500}
+                                          sx={{ fontSize: "0.875rem" }}
+                                        >
+                                          {chart.label}
+                                        </Typography>
+                                        <Typography
+                                          variant="caption"
+                                          color="text.secondary"
+                                          sx={{ fontSize: "0.7rem" }}
+                                        >
+                                          {chart.description}
+                                        </Typography>
+                                      </Box>
+                                    }
+                                    sx={{
+                                      mb: 0.5,
+                                      width: "100%",
+                                      alignItems: "flex-start",
+                                    }}
+                                  />
+                                );
+                              })}
+                            </Box>
+                          </Box>
+                        )}
+
+                        {sectionKPIs.length === 0 && sectionCharts.length === 0 && (
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            sx={{ fontSize: "0.875rem", fontStyle: "italic" }}
+                          >
+                            This section has no selectable KPIs or charts.
+                          </Typography>
+                        )}
+                      </Box>
+                    </AccordionDetails>
+                  </Accordion>
+                );
+              })}
+            </Box>
           </Box>
         </DialogContent>
         <DialogActions
@@ -4295,6 +4752,8 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
           <Button
             onClick={() => {
               setTempSelectedKPIs(new Set(selectedKPIs));
+              setTempVisibleSections(new Set(visibleSections));
+              setTempSelectedCharts(new Set(selectedCharts));
               setShowKPISelector(false);
             }}
             variant="outlined"

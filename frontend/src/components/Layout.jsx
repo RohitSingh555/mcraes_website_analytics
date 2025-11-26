@@ -102,18 +102,26 @@ function Layout({ children }) {
           px: 2,
         }}
       >
-        <Box textAlign="center">
-          <Typography 
-            variant="h6" 
-            sx={{ 
-              fontWeight: 700, 
-              fontSize: '1rem',
-              letterSpacing: '-0.02em',
-              color: 'text.primary',
+        <Box 
+          textAlign="center"
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Box
+            component="img"
+            src="https://kvrnlsosagpwiuqzifva.supabase.co/storage/v1/object/public/brand-logos/1631325584055.jpeg"
+            alt="McRAE Analytics"
+            sx={{
+              maxHeight: 100,
+              maxWidth: 200,
+              height: 'auto',
+              width: 'auto',
+              objectFit: 'contain',
             }}
-          >
-            McRAE Analytics
-          </Typography>
+          />
         </Box>
       </Toolbar>
       

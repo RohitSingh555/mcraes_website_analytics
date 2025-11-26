@@ -6,15 +6,15 @@ export const theme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#0f172a', // Slate 900
-      light: '#334155', // Slate 700
-      dark: '#020617', // Slate 950
+      main: '#1e77b9', // McRAE Primary Blue
+      light: alpha('#1e77b9', 0.7),
+      dark: alpha('#1e77b9', 0.9),
       contrastText: '#ffffff',
     },
     secondary: {
-      main: '#64748b', // Slate 500
-      light: '#94a3b8', // Slate 400
-      dark: '#475569', // Slate 600
+      main: '#f4af46', // McRAE Secondary Orange
+      light: alpha('#f4af46', 0.7),
+      dark: alpha('#f4af46', 0.9),
       contrastText: '#ffffff',
     },
     success: {
@@ -42,18 +42,20 @@ export const theme = createTheme({
       paper: '#ffffff',
     },
     text: {
-      primary: '#0f172a', // Slate 900
-      secondary: '#64748b', // Slate 500
+      primary: '#1e293b', // Dark blue-gray for readability, aligned with primary theme
+      secondary: alpha('#1e77b9', 0.7), // Mix of primary and secondary for balanced secondary text
       disabled: '#94a3b8', // Slate 400
     },
     divider: '#e2e8f0', // Slate 200
     action: {
-      hover: '#f1f5f9', // Slate 100
-      selected: '#e2e8f0', // Slate 200
+      hover: alpha('#f4af46', 0.08), // Use secondary color for hover backgrounds
+      selected: alpha('#1e77b9', 0.1), // Use primary color for selected backgrounds
+      hoverOpacity: 0.08,
+      selectedOpacity: 0.1,
     },
   },
   typography: {
-    fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"',
+    fontFamily: '"Inter", "Inter var", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"',
     h1: {
       fontSize: '2.5rem',
       fontWeight: 700,
@@ -93,12 +95,12 @@ export const theme = createTheme({
     subtitle1: {
       fontSize: '1rem',
       fontWeight: 500,
-      color: '#64748b',
+      color: alpha('#f4af46', 0.8), // Use secondary color for subtitles
     },
     subtitle2: {
       fontSize: '0.875rem',
       fontWeight: 500,
-      color: '#64748b',
+      color: alpha('#f4af46', 0.8), // Use secondary color for subtitles
     },
     body1: {
       fontSize: '1rem',
@@ -130,7 +132,8 @@ export const theme = createTheme({
       styleOverrides: {
         body: {
           backgroundColor: '#f8fafc',
-          color: '#0f172a',
+          color: '#1e293b', // Updated to match text.primary
+          fontFamily: '"Inter", "Inter var", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
         },
       },
     },
@@ -160,18 +163,37 @@ export const theme = createTheme({
           },
         },
         containedPrimary: {
-          backgroundColor: '#0f172a',
+          backgroundColor: '#1e77b9',
           color: '#ffffff',
           '&:hover': {
-            backgroundColor: '#1e293b',
+            backgroundColor: alpha('#1e77b9', 0.9),
+          },
+        },
+        containedSecondary: {
+          backgroundColor: '#f4af46',
+          color: '#ffffff',
+          '&:hover': {
+            backgroundColor: alpha('#f4af46', 0.9),
           },
         },
         outlined: {
           borderColor: '#e2e8f0',
-          color: '#0f172a',
+          color: '#1e293b', // Updated to match text.primary
           '&:hover': {
-            backgroundColor: '#f1f5f9',
-            borderColor: '#cbd5e1',
+            backgroundColor: alpha('#f4af46', 0.08), // Use secondary color for hover
+            borderColor: alpha('#f4af46', 0.3),
+          },
+        },
+        textPrimary: {
+          color: '#1e77b9',
+          '&:hover': {
+            backgroundColor: alpha('#1e77b9', 0.08),
+          },
+        },
+        textSecondary: {
+          color: '#f4af46',
+          '&:hover': {
+            backgroundColor: alpha('#f4af46', 0.08),
           },
         },
       },
@@ -195,7 +217,7 @@ export const theme = createTheme({
         },
         head: {
           backgroundColor: '#f8fafc',
-          color: '#64748b',
+          color: alpha('#f4af46', 0.8), // Use secondary color for table headers
           fontWeight: 600,
           fontSize: '0.75rem',
           textTransform: 'uppercase',
@@ -212,8 +234,26 @@ export const theme = createTheme({
         filled: {
           border: '1px solid transparent',
         },
+        filledPrimary: {
+          backgroundColor: alpha('#1e77b9', 0.1),
+          color: '#1e77b9',
+          border: `1px solid ${alpha('#1e77b9', 0.2)}`,
+        },
+        filledSecondary: {
+          backgroundColor: alpha('#f4af46', 0.1),
+          color: '#f4af46',
+          border: `1px solid ${alpha('#f4af46', 0.2)}`,
+        },
         outlined: {
           borderColor: '#e2e8f0',
+        },
+        outlinedPrimary: {
+          borderColor: alpha('#1e77b9', 0.3),
+          color: '#1e77b9',
+        },
+        outlinedSecondary: {
+          borderColor: alpha('#f4af46', 0.3),
+          color: '#f4af46',
         },
       },
     },
@@ -223,7 +263,7 @@ export const theme = createTheme({
           backgroundColor: '#ffffff',
           borderBottom: '1px solid #e2e8f0',
           boxShadow: 'none',
-          color: '#0f172a',
+          color: '#1e293b', // Updated to match text.primary
         },
       },
     },
@@ -242,17 +282,17 @@ export const theme = createTheme({
           margin: '4px 8px',
           padding: '8px 12px',
           '&.Mui-selected': {
-            backgroundColor: '#f1f5f9',
-            color: '#0f172a',
+            backgroundColor: alpha('#1e77b9', 0.1), // Use primary color for selected state
+            color: '#1e77b9', // Use primary color for selected text
             '&:hover': {
-              backgroundColor: '#e2e8f0',
+              backgroundColor: alpha('#1e77b9', 0.15),
             },
             '& .MuiListItemIcon-root': {
-              color: '#0f172a',
+              color: '#1e77b9', // Use primary color for selected icons
             },
           },
           '&:hover': {
-            backgroundColor: '#f8fafc',
+            backgroundColor: alpha('#f4af46', 0.08), // Use secondary color for hover
           },
         },
       },
@@ -261,7 +301,115 @@ export const theme = createTheme({
       styleOverrides: {
         root: {
           minWidth: 32,
-          color: '#64748b',
+          color: alpha('#f4af46', 0.7), // Use secondary color for icons
+        },
+      },
+    },
+    MuiLink: {
+      styleOverrides: {
+        root: {
+          color: '#1e77b9', // Use primary color for links
+          textDecoration: 'none',
+          '&:hover': {
+            color: '#f4af46', // Use secondary color on hover
+            textDecoration: 'underline',
+          },
+        },
+      },
+    },
+    MuiTab: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+          fontWeight: 500,
+          '&.Mui-selected': {
+            color: '#1e77b9', // Use primary color for selected tab
+          },
+          '&:hover': {
+            color: '#f4af46', // Use secondary color on hover
+          },
+        },
+      },
+    },
+    MuiTabs: {
+      styleOverrides: {
+        indicator: {
+          backgroundColor: '#1e77b9', // Use primary color for tab indicator
+        },
+      },
+    },
+    MuiSwitch: {
+      styleOverrides: {
+        switchBase: {
+          '&.Mui-checked': {
+            color: '#1e77b9', // Use primary color for checked switch
+            '& + .MuiSwitch-track': {
+              backgroundColor: '#1e77b9',
+            },
+          },
+        },
+        track: {
+          backgroundColor: alpha('#f4af46', 0.3), // Use secondary color for track
+        },
+      },
+    },
+    MuiCheckbox: {
+      styleOverrides: {
+        root: {
+          '&.Mui-checked': {
+            color: '#1e77b9', // Use primary color for checked checkbox
+          },
+          '&.Mui-indeterminate': {
+            color: '#f4af46', // Use secondary color for indeterminate
+          },
+        },
+      },
+    },
+    MuiRadio: {
+      styleOverrides: {
+        root: {
+          '&.Mui-checked': {
+            color: '#1e77b9', // Use primary color for checked radio
+          },
+        },
+      },
+    },
+    MuiSlider: {
+      styleOverrides: {
+        thumb: {
+          '&:hover': {
+            boxShadow: `0 0 0 8px ${alpha('#f4af46', 0.16)}`, // Use secondary color for hover
+          },
+          '&.Mui-active': {
+            boxShadow: `0 0 0 14px ${alpha('#f4af46', 0.16)}`,
+          },
+        },
+        track: {
+          backgroundColor: '#1e77b9', // Use primary color for track
+        },
+        rail: {
+          backgroundColor: alpha('#f4af46', 0.2), // Use secondary color for rail
+        },
+      },
+    },
+    MuiProgress: {
+      styleOverrides: {
+        bar: {
+          backgroundColor: '#1e77b9', // Use primary color for progress bar
+        },
+      },
+    },
+    MuiLinearProgress: {
+      styleOverrides: {
+        bar: {
+          backgroundColor: '#1e77b9', // Use primary color for linear progress
+        },
+      },
+    },
+    MuiCircularProgress: {
+      styleOverrides: {
+        circle: {
+          stroke: '#1e77b9', // Use primary color for circular progress
         },
       },
     },

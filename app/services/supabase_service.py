@@ -358,7 +358,7 @@ class SupabaseService:
     # =====================================================
     
     def upsert_agency_analytics_campaign(self, campaign: Dict) -> int:
-        """Upsert Agency Analytics campaign metadata"""
+        """Upsert Agency Analytics campaign metadata - Updates existing records by primary key (id)"""
         try:
             record = {
                 "id": campaign.get("id"),
@@ -388,75 +388,81 @@ class SupabaseService:
                 "updated_at": datetime.now().isoformat()
             }
             
+            # Upsert by primary key (id) - Supabase automatically handles conflicts on primary keys
+            # This will update existing records or insert new ones
             result = self.client.table("agency_analytics_campaigns").upsert(record).execute()
-            logger.info(f"Upserted campaign {campaign.get('id')}")
+            logger.debug(f"Upserted campaign {campaign.get('id')}")
             return 1
         except Exception as e:
-            logger.error(f"Error upserting campaign: {str(e)}")
-            raise
+            error_str = str(e)
+            # If upsert fails, try update then insert as fallback
+            if "conflict" in error_str.lower() or "duplicate" in error_str.lower() or "23505" in error_str:
+                try:
+                    # Try to update first (record exists)
+                    campaign_id = campaign.get("id")
+                    update_result = self.client.table("agency_analytics_campaigns").update(record).eq("id", campaign_id).execute()
+                    if update_result.data:
+                        logger.debug(f"Updated existing campaign {campaign_id}")
+                        return 1
+                    # If update didn't find record, insert (new record)
+                    insert_result = self.client.table("agency_analytics_campaigns").insert(record).execute()
+                    logger.debug(f"Inserted new campaign {campaign_id}")
+                    return 1
+                except Exception as retry_error:
+                    logger.warning(f"Retry upsert failed for campaign {campaign.get('id')}: {str(retry_error)}")
+                    # Don't raise - return 0 to indicate failure but don't stop the sync
+                    return 0
+            logger.error(f"Error upserting campaign {campaign.get('id')}: {error_str}")
+            # Don't raise - return 0 to allow sync to continue
+            return 0
     
     def upsert_agency_analytics_rankings(self, rankings: List[Dict]) -> int:
-        """Upsert Agency Analytics campaign rankings"""
+        """Upsert Agency Analytics campaign rankings - Optimized batch upsert"""
         if not rankings:
             return 0
         
         try:
-            # Upsert in batches
-            batch_size = 100
+            # Add updated_at timestamp to all records
+            for record in rankings:
+                record["updated_at"] = datetime.now().isoformat()
+            
+            # Use batch upsert - Supabase handles conflicts automatically via unique constraint
+            batch_size = 500  # Larger batch size for better performance
             total_upserted = 0
             
             for i in range(0, len(rankings), batch_size):
                 batch = rankings[i:i + batch_size]
-                # Add updated_at timestamp
-                for record in batch:
-                    record["updated_at"] = datetime.now().isoformat()
                 
-                # Handle upsert with conflict resolution for campaign_id_date unique constraint
-                # Process records individually to handle duplicates gracefully
-                for record in batch:
-                    try:
-                        campaign_id_date = record.get("campaign_id_date")
-                        if not campaign_id_date:
-                            logger.warning(f"Skipping record without campaign_id_date: {record}")
-                            continue
-                        
-                        # Check if record exists
-                        existing = self.client.table("agency_analytics_campaign_rankings").select("id").eq("campaign_id_date", campaign_id_date).execute()
-                        
-                        if existing.data and len(existing.data) > 0:
-                            # Update existing record
-                            record_id = existing.data[0].get("id")
-                            if record_id:
-                                # Update by ID (primary key)
-                                self.client.table("agency_analytics_campaign_rankings").update(record).eq("id", record_id).execute()
-                                total_upserted += 1
-                            else:
-                                # Fallback: delete and insert
-                                self.client.table("agency_analytics_campaign_rankings").delete().eq("campaign_id_date", campaign_id_date).execute()
-                                self.client.table("agency_analytics_campaign_rankings").insert(record).execute()
-                                total_upserted += 1
-                        else:
-                            # Insert new record
-                            self.client.table("agency_analytics_campaign_rankings").insert(record).execute()
-                            total_upserted += 1
-                    except Exception as record_error:
-                        error_str = str(record_error)
-                        # If it's a duplicate key error, try delete and insert
-                        if "duplicate key" in error_str.lower() or "23505" in error_str:
-                            try:
-                                campaign_id_date = record.get("campaign_id_date")
-                                if campaign_id_date:
-                                    # Delete existing and insert new
-                                    self.client.table("agency_analytics_campaign_rankings").delete().eq("campaign_id_date", campaign_id_date).execute()
-                                    self.client.table("agency_analytics_campaign_rankings").insert(record).execute()
-                                    total_upserted += 1
-                                    logger.debug(f"Updated record via delete+insert: {campaign_id_date}")
-                            except Exception as retry_error:
-                                logger.warning(f"Failed to upsert record {record.get('campaign_id_date')}: {str(retry_error)}")
-                        else:
-                            logger.warning(f"Error upserting record {record.get('campaign_id_date')}: {error_str}")
+                # Filter out records without required field
+                valid_batch = [r for r in batch if r.get("campaign_id_date")]
                 
-                logger.info(f"Processed batch {i//batch_size + 1}: {len(batch)} rankings")
+                if not valid_batch:
+                    continue
+                
+                try:
+                    # Batch upsert - Supabase automatically handles conflicts on unique constraints (campaign_id_date)
+                    # This will update existing records or insert new ones
+                    result = self.client.table("agency_analytics_campaign_rankings").upsert(valid_batch).execute()
+                    
+                    total_upserted += len(valid_batch)
+                    logger.debug(f"Upserted batch {i//batch_size + 1}: {len(valid_batch)} records")
+                except Exception as batch_error:
+                    error_str = str(batch_error)
+                    # Check if table doesn't exist
+                    if "Could not find the table" in error_str or "does not exist" in error_str:
+                        logger.warning(f"Table 'agency_analytics_campaign_rankings' does not exist yet. Please run the SQL script to create it.")
+                        return 0
+                    # Fallback to smaller batches if large batch fails
+                    logger.warning(f"Batch upsert failed, trying smaller batches: {error_str}")
+                    small_batch_size = 50
+                    for j in range(0, len(valid_batch), small_batch_size):
+                        small_batch = valid_batch[j:j + small_batch_size]
+                        try:
+                            self.client.table("agency_analytics_campaign_rankings").upsert(small_batch).execute()
+                            total_upserted += len(small_batch)
+                        except Exception as small_batch_error:
+                            # Log but continue - don't fail the entire sync
+                            logger.warning(f"Failed to upsert small batch (continuing): {str(small_batch_error)}")
             
             logger.info(f"Total upserted {total_upserted} rankings")
             return total_upserted
@@ -509,66 +515,52 @@ class SupabaseService:
             raise
     
     def upsert_agency_analytics_keywords(self, keywords: List[Dict]) -> int:
-        """Upsert Agency Analytics keywords"""
+        """Upsert Agency Analytics keywords - Optimized batch upsert"""
         if not keywords:
             return 0
         
         try:
-            # Upsert in batches
-            batch_size = 100
+            # Add updated_at timestamp to all records
+            for record in keywords:
+                record["updated_at"] = datetime.now().isoformat()
+            
+            # Use batch upsert - Supabase handles conflicts automatically via unique constraint
+            batch_size = 500  # Larger batch size for better performance
             total_upserted = 0
             
             for i in range(0, len(keywords), batch_size):
                 batch = keywords[i:i + batch_size]
-                # Add updated_at timestamp
-                for record in batch:
-                    record["updated_at"] = datetime.now().isoformat()
                 
-                # Handle upsert with conflict resolution for campaign_keyword_id unique constraint
-                for record in batch:
-                    try:
-                        campaign_keyword_id = record.get("campaign_keyword_id")
-                        if not campaign_keyword_id:
-                            logger.warning(f"Skipping keyword without campaign_keyword_id: {record}")
-                            continue
-                        
-                        # Check if record exists
-                        existing = self.client.table("agency_analytics_keywords").select("id").eq("campaign_keyword_id", campaign_keyword_id).execute()
-                        
-                        if existing.data and len(existing.data) > 0:
-                            # Update existing record
-                            record_id = existing.data[0].get("id")
-                            if record_id:
-                                # Update by ID (primary key)
-                                self.client.table("agency_analytics_keywords").update(record).eq("id", record_id).execute()
-                                total_upserted += 1
-                            else:
-                                # Fallback: delete and insert
-                                self.client.table("agency_analytics_keywords").delete().eq("campaign_keyword_id", campaign_keyword_id).execute()
-                                self.client.table("agency_analytics_keywords").insert(record).execute()
-                                total_upserted += 1
-                        else:
-                            # Insert new record
-                            self.client.table("agency_analytics_keywords").insert(record).execute()
-                            total_upserted += 1
-                    except Exception as record_error:
-                        error_str = str(record_error)
-                        # If it's a duplicate key error, try delete and insert
-                        if "duplicate key" in error_str.lower() or "23505" in error_str:
-                            try:
-                                campaign_keyword_id = record.get("campaign_keyword_id")
-                                if campaign_keyword_id:
-                                    # Delete existing and insert new
-                                    self.client.table("agency_analytics_keywords").delete().eq("campaign_keyword_id", campaign_keyword_id).execute()
-                                    self.client.table("agency_analytics_keywords").insert(record).execute()
-                                    total_upserted += 1
-                                    logger.debug(f"Updated keyword via delete+insert: {campaign_keyword_id}")
-                            except Exception as retry_error:
-                                logger.warning(f"Failed to upsert keyword {record.get('campaign_keyword_id')}: {str(retry_error)}")
-                        else:
-                            logger.warning(f"Error upserting keyword {record.get('campaign_keyword_id')}: {error_str}")
+                # Filter out records without required field
+                valid_batch = [r for r in batch if r.get("campaign_keyword_id")]
                 
-                logger.info(f"Processed keyword batch {i//batch_size + 1}: {len(batch)} keywords")
+                if not valid_batch:
+                    continue
+                
+                try:
+                    # Batch upsert - Supabase automatically handles conflicts on unique constraints (campaign_keyword_id)
+                    # This will update existing records or insert new ones
+                    result = self.client.table("agency_analytics_keywords").upsert(valid_batch).execute()
+                    
+                    total_upserted += len(valid_batch)
+                    logger.debug(f"Upserted batch {i//batch_size + 1}: {len(valid_batch)} keywords")
+                except Exception as batch_error:
+                    error_str = str(batch_error)
+                    # Check if table doesn't exist
+                    if "Could not find the table" in error_str or "does not exist" in error_str:
+                        logger.warning(f"Table 'agency_analytics_keywords' does not exist yet. Please run the SQL script to create it.")
+                        return 0
+                    # Fallback to smaller batches if large batch fails
+                    logger.warning(f"Batch upsert failed, trying smaller batches: {error_str}")
+                    small_batch_size = 50
+                    for j in range(0, len(valid_batch), small_batch_size):
+                        small_batch = valid_batch[j:j + small_batch_size]
+                        try:
+                            self.client.table("agency_analytics_keywords").upsert(small_batch).execute()
+                            total_upserted += len(small_batch)
+                        except Exception as small_batch_error:
+                            # Log but continue - don't fail the entire sync
+                            logger.warning(f"Failed to upsert small batch (continuing): {str(small_batch_error)}")
             
             logger.info(f"Total upserted {total_upserted} keywords")
             return total_upserted
@@ -600,8 +592,8 @@ class SupabaseService:
                     continue
                 
                 try:
-                    # Batch upsert - Supabase handles conflicts automatically via unique constraint
-                    # The upsert method will update existing records based on unique constraint (keyword_id_date)
+                    # Batch upsert - Supabase automatically handles conflicts on unique constraints (keyword_id_date)
+                    # This will update existing records or insert new ones
                     result = self.client.table("agency_analytics_keyword_rankings").upsert(valid_batch).execute()
                     
                     total_upserted += len(valid_batch)
@@ -614,7 +606,6 @@ class SupabaseService:
                         return 0
                     # Fallback to smaller batches if large batch fails
                     logger.warning(f"Batch upsert failed, trying smaller batches: {error_str}")
-                    # Try smaller batches of 50
                     small_batch_size = 50
                     for j in range(0, len(valid_batch), small_batch_size):
                         small_batch = valid_batch[j:j + small_batch_size]
@@ -622,7 +613,8 @@ class SupabaseService:
                             self.client.table("agency_analytics_keyword_rankings").upsert(small_batch).execute()
                             total_upserted += len(small_batch)
                         except Exception as small_batch_error:
-                            logger.warning(f"Failed to upsert small batch: {str(small_batch_error)}")
+                            # Log but continue - don't fail the entire sync
+                            logger.warning(f"Failed to upsert small batch (continuing): {str(small_batch_error)}")
             
             logger.info(f"Total upserted {total_upserted} keyword rankings")
             return total_upserted
@@ -636,16 +628,17 @@ class SupabaseService:
             raise
     
     def upsert_agency_analytics_keyword_ranking_summary(self, summary: Dict) -> int:
-        """Upsert Agency Analytics keyword ranking summary (latest + change)"""
+        """Upsert Agency Analytics keyword ranking summary (latest + change) - Updates existing records by primary key (keyword_id)"""
         if not summary:
             return 0
         
         try:
             summary["updated_at"] = datetime.now().isoformat()
             
-            # Upsert by keyword_id (primary key)
+            # Upsert by keyword_id (primary key) - Supabase automatically handles conflicts on primary keys
+            # This will update existing records or insert new ones
             self.client.table("agency_analytics_keyword_ranking_summaries").upsert(summary).execute()
-            logger.info(f"Upserted keyword ranking summary for keyword {summary.get('keyword_id')}")
+            logger.debug(f"Upserted keyword ranking summary for keyword {summary.get('keyword_id')}")
             return 1
         except Exception as e:
             error_str = str(e)
@@ -653,8 +646,26 @@ class SupabaseService:
             if "Could not find the table" in error_str or "does not exist" in error_str:
                 logger.warning(f"Table 'agency_analytics_keyword_ranking_summaries' does not exist yet. Please run the SQL script to create it.")
                 return 0
+            # If upsert fails, try update then insert as fallback
+            if "conflict" in error_str.lower() or "duplicate" in error_str.lower() or "23505" in error_str:
+                try:
+                    keyword_id = summary.get("keyword_id")
+                    # Try to update first (record exists)
+                    update_result = self.client.table("agency_analytics_keyword_ranking_summaries").update(summary).eq("keyword_id", keyword_id).execute()
+                    if update_result.data:
+                        logger.debug(f"Updated existing keyword ranking summary for keyword {keyword_id}")
+                        return 1
+                    # If update didn't find record, insert (new record)
+                    insert_result = self.client.table("agency_analytics_keyword_ranking_summaries").insert(summary).execute()
+                    logger.debug(f"Inserted new keyword ranking summary for keyword {keyword_id}")
+                    return 1
+                except Exception as retry_error:
+                    logger.warning(f"Retry upsert failed for keyword {summary.get('keyword_id')}: {str(retry_error)}")
+                    # Don't raise - return 0 to indicate failure but don't stop the sync
+                    return 0
             logger.error(f"Error upserting keyword ranking summary: {error_str}")
-            raise
+            # Don't raise - return 0 to allow sync to continue
+            return 0
     
     def upsert_agency_analytics_keyword_ranking_summaries_batch(self, summaries: List[Dict]) -> int:
         """Batch upsert Agency Analytics keyword ranking summaries - Optimized"""
@@ -674,6 +685,8 @@ class SupabaseService:
                 batch = summaries[i:i + batch_size]
                 
                 try:
+                    # Batch upsert - Supabase automatically handles conflicts on primary keys (keyword_id)
+                    # This will update existing records or insert new ones
                     result = self.client.table("agency_analytics_keyword_ranking_summaries").upsert(batch).execute()
                     total_upserted += len(batch)
                     logger.debug(f"Upserted summary batch {i//batch_size + 1}: {len(batch)} summaries")
@@ -682,14 +695,15 @@ class SupabaseService:
                     if "Could not find the table" in error_str or "does not exist" in error_str:
                         logger.warning(f"Table 'agency_analytics_keyword_ranking_summaries' does not exist yet. Please run the SQL script to create it.")
                         return 0
-                    # Fallback to individual upserts
+                    # Fallback to individual upserts if batch fails
                     logger.warning(f"Batch upsert failed, falling back to individual upserts: {error_str}")
                     for summary in batch:
                         try:
                             self.client.table("agency_analytics_keyword_ranking_summaries").upsert(summary).execute()
                             total_upserted += 1
                         except Exception as summary_error:
-                            logger.warning(f"Failed to upsert summary for keyword {summary.get('keyword_id')}: {str(summary_error)}")
+                            # Log but continue - don't fail the entire sync
+                            logger.warning(f"Failed to upsert summary for keyword {summary.get('keyword_id')} (continuing): {str(summary_error)}")
             
             logger.info(f"Total upserted {total_upserted} keyword ranking summaries")
             return total_upserted

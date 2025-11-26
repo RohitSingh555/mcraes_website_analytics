@@ -13,11 +13,11 @@
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-family: 'Inter', 'Inter var', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: #f8fafc;
-  color: #0f172a;
+  color: #1e293b; /* Updated to match theme text.primary */
   line-height: 1.5;
 }
 
@@ -52,14 +52,26 @@ html {
 
 /* Selection */
 ::selection {
-  background: rgba(15, 23, 42, 0.1);
-  color: #0f172a;
+  background: rgba(30, 119, 185, 0.2); /* Updated to use primary color with transparency */
+  color: #1e293b; /* Updated to match theme text.primary */
 }
 
-/* Focus visible */
+/* Focus visible - alternate between primary and secondary */
 *:focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid #1e77b9; /* Use primary color */
   outline-offset: 2px;
+}
+
+/* Links - use primary and secondary colors */
+a {
+  color: #1e77b9; /* Primary color for links */
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: #f4af46; /* Secondary color on hover */
+  text-decoration: underline;
 }
 
 /* Animations */

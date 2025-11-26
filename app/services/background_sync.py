@@ -311,14 +311,28 @@ async def sync_agency_analytics_background(
     try:
         await sync_job_service.update_job_status(
             job_id, "running", progress=0,
-            current_step="Fetching campaigns...", total_steps=1
+            current_step="Fetching all campaigns...", total_steps=1
         )
         
-        # Get campaigns
+        # Step 1: Get all campaigns and update them in database first
         if campaign_id:
-            campaigns = [await client.get_campaign(campaign_id)]
+            campaign = await client.get_campaign(campaign_id)
+            campaigns = [campaign] if campaign else []
         else:
-            campaigns = await client.get_campaigns()
+            campaigns = await client.get_all_campaigns()
+        
+        # Filter out None campaigns
+        campaigns = [c for c in campaigns if c is not None]
+        total_campaigns = len(campaigns)
+        
+        if total_campaigns == 0:
+            raise Exception("No campaigns found to sync")
+        
+        # Step 1: Update all campaigns in database first
+        await sync_job_service.update_job_status(
+            job_id, "running", progress=5,
+            current_step=f"Updating {total_campaigns} campaigns in database...", total_steps=1
+        )
         
         total_synced = {
             "campaigns": 0,
@@ -329,24 +343,180 @@ async def sync_agency_analytics_background(
             "brand_links": 0
         }
         
-        campaign_results = []
-        total_campaigns = len(campaigns)
+        # Batch upsert all campaigns at once
+        for campaign in campaigns:
+            try:
+                supabase.upsert_agency_analytics_campaign(campaign)
+                total_synced["campaigns"] += 1
+            except Exception as e:
+                logger.warning(f"Error upserting campaign {campaign.get('id')}: {str(e)}")
         
-        for idx, campaign in enumerate(campaigns):
-            progress = int((idx / total_campaigns) * 90)
+        # Step 2: Filter to only active campaigns for data fetching
+        active_campaigns = [c for c in campaigns if c.get("status", "").lower() == "active"]
+        active_count = len(active_campaigns)
+        
+        logger.info(f"Total campaigns: {total_campaigns}, Active campaigns: {active_count}")
+        
+        if active_count == 0:
+            result = {
+                "status": "success",
+                "message": f"Updated {total_synced['campaigns']} campaigns. No active campaigns to sync data for.",
+                "total_synced": total_synced,
+                "campaign_results": []
+            }
+            await sync_job_service.complete_job(job_id, result)
+            return
+        
+        campaign_results = []
+        
+        # Calculate steps: rankings + keywords + keyword rankings for active campaigns
+        total_steps = active_count * 3  # Each active campaign: rankings, keywords, keyword_rankings
+        current_step_num = 0
+        
+        # Step 3: Fetch data only for active campaigns
+        for idx, campaign in enumerate(active_campaigns):
+            campaign_id_val = campaign.get("id")
+            company_name = campaign.get("company", "Unknown")
+            
+            try:
+                # Collect all data for this campaign before pushing
+                campaign_data_batch = {
+                    "rankings": [],
+                    "keywords": [],
+                    "keyword_rankings": [],
+                    "keyword_summaries": []
+                }
+                
+                # Step 3a: Fetch campaign rankings
+                current_step_num += 1
+                progress = 10 + int((current_step_num / total_steps) * 80)
+                await sync_job_service.update_job_status(
+                    job_id, "running", progress=progress,
+                    current_step=f"[{idx + 1}/{active_count}] Fetching rankings for: {company_name}..."
+                )
+                
+                rankings = await client.get_campaign_rankings(campaign_id_val)
+                if rankings:
+                    formatted_rankings = client.format_rankings_data(rankings, campaign)
+                    campaign_data_batch["rankings"] = formatted_rankings
+                
+                # Step 3b: Fetch keywords
+                current_step_num += 1
+                progress = 10 + int((current_step_num / total_steps) * 80)
+                await sync_job_service.update_job_status(
+                    job_id, "running", progress=progress,
+                    current_step=f"[{idx + 1}/{active_count}] Fetching keywords for: {company_name}..."
+                )
+                
+                keywords = await client.get_all_campaign_keywords(campaign_id_val)
+                if keywords:
+                    formatted_keywords = client.format_keywords_data(keywords)
+                    campaign_data_batch["keywords"] = formatted_keywords
+                    
+                    # Step 3c: Fetch keyword rankings
+                    current_step_num += 1
+                    progress = 10 + int((current_step_num / total_steps) * 80)
+                    await sync_job_service.update_job_status(
+                        job_id, "running", progress=progress,
+                        current_step=f"[{idx + 1}/{active_count}] Fetching keyword rankings for: {company_name}..."
+                    )
+                    
+                    for keyword in formatted_keywords:
+                        keyword_id = keyword.get("id")
+                        keyword_phrase = keyword.get("keyword_phrase", "")
+                        
+                        try:
+                            keyword_rankings = await client.get_keyword_rankings(keyword_id)
+                            if keyword_rankings:
+                                daily_records, summary = client.format_keyword_rankings_data(
+                                    keyword_rankings, keyword_id, campaign_id_val, keyword_phrase
+                                )
+                                
+                                if daily_records:
+                                    campaign_data_batch["keyword_rankings"].extend(daily_records)
+                                
+                                if summary:
+                                    campaign_data_batch["keyword_summaries"].append(summary)
+                        except Exception as keyword_error:
+                            logger.warning(f"Error syncing keyword rankings for keyword {keyword_id}: {str(keyword_error)}")
+                            continue
+                else:
+                    # No keywords, but still count as a step
+                    current_step_num += 1
+                
+                # Step 4: Push all data for this campaign at once
+                await sync_job_service.update_job_status(
+                    job_id, "running", progress=10 + int((current_step_num / total_steps) * 80),
+                    current_step=f"[{idx + 1}/{active_count}] Saving data for: {company_name}..."
+                )
+                
+                # Batch upsert all data for this campaign
+                if campaign_data_batch["rankings"]:
+                    count = supabase.upsert_agency_analytics_rankings(campaign_data_batch["rankings"])
+                    total_synced["rankings"] += count
+                
+                if campaign_data_batch["keywords"]:
+                    count = supabase.upsert_agency_analytics_keywords(campaign_data_batch["keywords"])
+                    total_synced["keywords"] += count
+                
+                if campaign_data_batch["keyword_rankings"]:
+                    count = supabase.upsert_agency_analytics_keyword_rankings(campaign_data_batch["keyword_rankings"])
+                    total_synced["keyword_rankings"] += count
+                
+                if campaign_data_batch["keyword_summaries"]:
+                    count = supabase.upsert_agency_analytics_keyword_ranking_summaries_batch(campaign_data_batch["keyword_summaries"])
+                    total_synced["keyword_ranking_summaries"] += count
+                
+                campaign_results.append({
+                    "campaign_id": campaign_id_val,
+                    "company": company_name,
+                    "status": "success"
+                })
+                
+            except Exception as campaign_error:
+                logger.error(f"Error syncing campaign {campaign_id_val}: {str(campaign_error)}")
+                campaign_results.append({
+                    "campaign_id": campaign_id_val,
+                    "company": company_name,
+                    "status": "error",
+                    "error": str(campaign_error)
+                })
+                continue
+        
+        # Step 5: Auto-match campaigns to brands
+        if auto_match_brands:
             await sync_job_service.update_job_status(
-                job_id, "running", progress=progress,
-                current_step=f"Syncing campaign {campaign.get('company', 'Unknown')} ({idx + 1}/{total_campaigns})..."
+                job_id, "running", progress=90,
+                current_step="Auto-matching campaigns to brands..."
             )
             
-            # Sync campaign data (simplified - add full logic here)
-            campaign_id_val = campaign.get("id")
-            campaign_results.append({
-                "campaign_id": campaign_id_val,
-                "company": campaign.get("company", "Unknown"),
-                "status": "success"
-            })
-            total_synced["campaigns"] += 1
+            try:
+                # Get all brands
+                brands_result = supabase.client.table("brands").select("*").execute()
+                brands = brands_result.data if hasattr(brands_result, 'data') else []
+                
+                # Get all campaigns
+                campaigns_result = supabase.client.table("agency_analytics_campaigns").select("*").execute()
+                all_campaigns = campaigns_result.data if hasattr(campaigns_result, 'data') else []
+                
+                # Match campaigns to brands
+                for campaign in all_campaigns:
+                    for brand in brands:
+                        match_result = client.match_campaign_to_brand(campaign, brand)
+                        if match_result:
+                            try:
+                                supabase.link_campaign_to_brand(
+                                    match_result["campaign_id"],
+                                    match_result["brand_id"],
+                                    match_result["match_method"],
+                                    match_result["match_confidence"]
+                                )
+                                total_synced["brand_links"] += 1
+                            except Exception as link_error:
+                                logger.warning(f"Error linking campaign {match_result['campaign_id']} to brand {match_result['brand_id']}: {str(link_error)}")
+                                continue
+            except Exception as match_error:
+                logger.warning(f"Error during auto-matching: {str(match_error)}")
         
         status = "success"
         

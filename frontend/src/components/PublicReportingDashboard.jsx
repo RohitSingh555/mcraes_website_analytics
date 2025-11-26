@@ -11,6 +11,7 @@ import {
   useTheme,
   Container,
   ThemeProvider,
+  CssBaseline,
 } from '@mui/material'
 import { createTheme } from '@mui/material/styles'
 import { motion } from 'framer-motion'
@@ -138,10 +139,14 @@ function PublicReportingDashboard() {
   // We'll create a wrapper that passes the brand_id to ReportingDashboard
   return (
     <ThemeProvider theme={brandTheme}>
+      <CssBaseline />
       <Box
         sx={{
           minHeight: '100vh',
           bgcolor: brandTheme.palette.background.default,
+          fontFamily: brandTheme.typography.fontFamily,
+          // Apply theme colors globally
+          color: brandTheme.palette.text.primary,
         }}
       >
         {/* Pass slug to a modified ReportingDashboard that accepts slug prop */}

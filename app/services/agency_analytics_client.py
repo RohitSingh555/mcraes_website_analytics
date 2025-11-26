@@ -5,6 +5,7 @@ Fetches campaigns and campaign rankings data
 import httpx
 import logging
 import json
+import base64
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
@@ -17,10 +18,24 @@ class AgencyAnalyticsClient:
     
     def __init__(self):
         self.base_url = "https://apirequest.app/query"
-        self.auth_token = "OnRrbi5lYjExYmVlOTY0MTAzNmRiMTYyMjIwMDk4NzdkODJiOA=="
+        
+        # Get API key from config (can be overridden via .env)
+        api_key = settings.AGENCY_ANALYTICS_API_KEY
+        if not api_key:
+            raise ValueError(
+                "AGENCY_ANALYTICS_API_KEY is not set. "
+                "Please set it in config.py or .env file."
+            )
+        
+        # Format: BASE64_ENCODE(:API_KEY) as per API documentation
+        # Basic auth requires base64 encoding of ":API_KEY"
+        auth_string = f":{api_key}"
+        auth_bytes = auth_string.encode('utf-8')
+        auth_b64 = base64.b64encode(auth_bytes).decode('utf-8')
+        
         self.headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Basic {self.auth_token}"
+            "Authorization": f"Basic {auth_b64}"
         }
     
     async def _request(self, body: Dict) -> Dict:
@@ -32,8 +47,28 @@ class AgencyAnalyticsClient:
                     headers=self.headers,
                     json=body
                 )
-                response.raise_for_status()
-                return response.json()
+                
+                # API always returns 200, but check response status field
+                response_data = response.json()
+                
+                # Check for errors in response
+                if response_data.get("status") == "error":
+                    error_code = response_data.get("code", 0)
+                    error_messages = response_data.get("results", {}).get("messages", {})
+                    
+                    error_msg = f"Agency Analytics API error (code {error_code})"
+                    if error_messages:
+                        error_msg += f": {json.dumps(error_messages)}"
+                    
+                    logger.error(error_msg)
+                    raise Exception(error_msg)
+                
+                # Check HTTP status code (should be 200, but handle other codes)
+                if response.status_code != 200:
+                    logger.error(f"HTTP error: {response.status_code} - {response.text}")
+                    response.raise_for_status()
+                
+                return response_data
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error: {e.response.status_code} - {e.response.text}")
             raise
@@ -42,7 +77,7 @@ class AgencyAnalyticsClient:
             raise
     
     async def get_campaigns(self, limit: int = 50, offset: int = 0) -> List[Dict]:
-        """Get all campaigns"""
+        """Get campaigns with pagination"""
         try:
             body = {
                 "provider": "agency-analytics-v2",
@@ -74,7 +109,7 @@ class AgencyAnalyticsClient:
                     "company_id",
                     "account_id"
                 ],
-                "sort": [{"id": "desc"}],
+                "sort": {"id": "desc"},
                 "offset": offset,
                 "limit": limit
             }
@@ -84,6 +119,31 @@ class AgencyAnalyticsClient:
         except Exception as e:
             logger.error(f"Error fetching campaigns: {str(e)}")
             raise
+    
+    async def get_all_campaigns(self) -> List[Dict]:
+        """Get all campaigns with automatic pagination"""
+        all_campaigns = []
+        offset = 0
+        batch_size = 100  # Reasonable batch size
+        
+        while True:
+            try:
+                campaigns = await self.get_campaigns(limit=batch_size, offset=offset)
+                if not campaigns:
+                    break
+                
+                all_campaigns.extend(campaigns)
+                
+                # If we got fewer than batch_size, we've reached the end
+                if len(campaigns) < batch_size:
+                    break
+                
+                offset += batch_size
+            except Exception as e:
+                logger.error(f"Error fetching campaigns batch at offset {offset}: {str(e)}")
+                break
+        
+        return all_campaigns
     
     async def get_campaign(self, campaign_id: int) -> Optional[Dict]:
         """Get a specific campaign by ID"""
@@ -123,7 +183,7 @@ class AgencyAnalyticsClient:
                         "id": {"$equals_comparison": campaign_id}
                     }
                 ],
-                "sort": [{"id": "desc"}],
+                "sort": {"id": "desc"},
                 "offset": 0,
                 "limit": 50
             }
@@ -141,14 +201,14 @@ class AgencyAnalyticsClient:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None
     ) -> List[Dict]:
-        """Get campaign rankings data (always quarterly)"""
+        """Get campaign rankings data (last 30 days by default)"""
         try:
-            # Always get quarterly data (last 3 months)
+            # Default to last 30 days
             if not end_date:
                 end_date = datetime.now().strftime("%Y-%m-%d")
             if not start_date:
-                # Get last 3 months (quarterly)
-                start_date = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
+                # Get last 30 days
+                start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
             
             body = {
                 "provider": "agency-analytics-v2",
@@ -176,7 +236,7 @@ class AgencyAnalyticsClient:
                     {"campaign_id": {"$equals_comparison": campaign_id}}
                 ],
                 "group_by": ["date"],
-                "sort": [{"date": "asc"}],
+                "sort": {"date": "asc"},
                 "offset": 0,
                 "limit": 9999
             }
@@ -211,7 +271,7 @@ class AgencyAnalyticsClient:
                 "filters": [
                     {"campaign_id": {"$equals_comparison": campaign_id}}
                 ],
-                "sort": [{"id": "desc"}],
+                "sort": {"id": "desc"},
                 "offset": offset,
                 "limit": limit
             }
@@ -353,14 +413,14 @@ class AgencyAnalyticsClient:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None
     ) -> List[Dict]:
-        """Get keyword rankings data (last 2 months by default)"""
+        """Get keyword rankings data (last 30 days by default)"""
         try:
-            # Default to last 2 months if not provided
+            # Default to last 30 days if not provided
             if not end_date:
                 end_date = datetime.now().strftime("%Y-%m-%d")
             if not start_date:
-                # Get last 2 months
-                start_date = (datetime.now() - timedelta(days=60)).strftime("%Y-%m-%d")
+                # Get last 30 days
+                start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
             
             body = {
                 "provider": "agency-analytics-v2",
@@ -386,7 +446,7 @@ class AgencyAnalyticsClient:
                     {"keyword_id": {"$equals_comparison": keyword_id}}
                 ],
                 "group_by": ["date"],
-                "sort": [{"date": "asc"}],
+                "sort": {"date": "asc"},
                 "offset": 0,
                 "limit": 9999
             }

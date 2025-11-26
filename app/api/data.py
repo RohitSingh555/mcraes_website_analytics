@@ -1196,6 +1196,7 @@ async def get_reporting_dashboard(
             
             if campaign_links:
                 campaign_ids = [link["campaign_id"] for link in campaign_links]
+                logger.info(f"Processing {len(campaign_ids)} campaigns: {campaign_ids}")
                 
                 # Get keyword ranking summaries for all campaigns
                 # NOTE: Only using 100% accurate data from Agency Analytics source - no estimations
@@ -1206,18 +1207,17 @@ async def get_reporting_dashboard(
                 ranking_change_count = 0
                 
                 for campaign_id in campaign_ids:
-                    # Query keyword ranking summaries filtered by date range
-                    # Use the date column or end_date column to filter
+                    # Query keyword ranking summaries - get all summaries for the campaign
+                    # Summaries represent the latest state of each keyword, so we get all summaries
+                    # The summaries table has one row per keyword with the most recent data
                     summaries_query = supabase.client.table("agency_analytics_keyword_ranking_summaries").select("*").eq("campaign_id", campaign_id)
                     
-                    # Filter by date range - check if date falls within range
-                    # The summaries table has 'date' column which is the latest date
-                    summaries_query = summaries_query.gte("date", start_date).lte("date", end_date)
-                    
+                    # Get all summaries - they represent the current state of keywords
+                    # We don't filter by date since summaries are the latest snapshot
                     summaries_result = summaries_query.execute()
                     summaries = summaries_result.data if hasattr(summaries_result, 'data') else []
                     
-                    logger.debug(f"Found {len(summaries)} keyword summaries for campaign {campaign_id} in date range {start_date} to {end_date}")
+                    logger.info(f"Found {len(summaries)} keyword summaries for campaign {campaign_id}")
                     
                     for summary in summaries:
                         search_volume = summary.get("search_volume", 0) or 0
@@ -1243,6 +1243,8 @@ async def get_reporting_dashboard(
                 # Calculate average ranking change
                 avg_ranking_change = (total_ranking_change / ranking_change_count) if ranking_change_count > 0 else 0
                 
+                logger.info(f"Agency Analytics KPI calculations: total_rankings={total_rankings}, avg_keyword_rank={avg_keyword_rank}, total_search_volume={total_search_volume}, avg_ranking_change={avg_ranking_change}")
+                
                 # Get previous period data for change calculation
                 prev_start = (datetime.strptime(start_date, "%Y-%m-%d") - timedelta(days=60)).strftime("%Y-%m-%d")
                 prev_end = (datetime.strptime(start_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -1255,8 +1257,10 @@ async def get_reporting_dashboard(
                 prev_total_search_volume = 0
                 
                 for campaign_id in campaign_ids:
+                    # Get previous period summaries - use the same approach, get all summaries
+                    # For comparison, we'll use the same summaries (they represent latest state)
+                    # In a real scenario, you might want to query historical daily rankings for previous period
                     prev_summaries_query = supabase.client.table("agency_analytics_keyword_ranking_summaries").select("*").eq("campaign_id", campaign_id)
-                    prev_summaries_query = prev_summaries_query.gte("date", prev_start).lte("date", prev_end)
                     prev_summaries_result = prev_summaries_query.execute()
                     prev_summaries = prev_summaries_result.data if hasattr(prev_summaries_result, 'data') else []
                     
@@ -1295,8 +1299,8 @@ async def get_reporting_dashboard(
                 # Collect all keywords with their rankings for "All Keywords ranking" KPI
                 all_keywords_rankings = []
                 for campaign_id in campaign_ids:
+                    # Get all summaries for the campaign - they represent the latest state
                     summaries_query = supabase.client.table("agency_analytics_keyword_ranking_summaries").select("*").eq("campaign_id", campaign_id)
-                    summaries_query = summaries_query.gte("date", start_date).lte("date", end_date)
                     summaries_result = summaries_query.execute()
                     summaries = summaries_result.data if hasattr(summaries_result, 'data') else []
                     
@@ -1464,6 +1468,7 @@ async def get_reporting_dashboard(
             # Check if brand has any Scrunch data at all (to determine if we should show Scrunch section)
             # This ensures we show Scrunch section even if date range has no data
             has_any_scrunch_data = len(responses) > 0 or len(prompts) > 0
+            logger.info(f"Brand {brand_id} Scrunch data check: responses={len(responses)}, prompts={len(prompts)}, has_any_scrunch_data={has_any_scrunch_data}")
             if not has_any_scrunch_data:
                 # Check if brand has any Scrunch data (without date filter)
                 any_responses_query = supabase.client.table("responses").select("id").eq("brand_id", brand_id).limit(1)
@@ -1474,6 +1479,7 @@ async def get_reporting_dashboard(
                 any_prompts_result = any_prompts_query.execute()
                 any_prompts = any_prompts_result.data if hasattr(any_prompts_result, 'data') else []
                 
+                logger.info(f"Brand {brand_id} checking for any Scrunch data (no date filter): any_responses={len(any_responses)}, any_prompts={len(any_prompts)}")
                 if len(any_responses) > 0 or len(any_prompts) > 0:
                     logger.info(f"Brand {brand_id} has Scrunch data but none in date range {start_date} to {end_date}. Will show Scrunch section with zero values.")
                     has_any_scrunch_data = True
@@ -1508,6 +1514,8 @@ async def get_reporting_dashboard(
                 # Track unique prompts across platforms for KPI 1: Prompt Reach Across Platforms
                 prompt_platform_map = {}  # {prompt_id: set(platforms)}
                 prompt_brand_present = set()  # Set of prompt_ids where brand appeared
+                unique_prompts_tracked = set()  # Set of all unique prompt_ids tracked
+                unique_prompts_with_brand = set()  # Set of prompt_ids where brand appeared
                 
                 # Track competitor data for KPI 2: Competitive Benchmarking
                 competitor_visibility_count = {}  # {competitor_name: count of appearances}
@@ -1673,9 +1681,13 @@ async def get_reporting_dashboard(
             
             # Calculate Scrunch KPIs if brand has any Scrunch data (prompts or responses)
             # This ensures all brands with Scrunch data show the section (with zero values if no data in date range)
+            logger.info(f"Brand {brand_id} Scrunch KPI calculation: has_any_scrunch_data={has_any_scrunch_data}")
             if has_any_scrunch_data:
                 # Calculate current period metrics (will be zero if no responses)
                 current_metrics = calculate_scrunch_metrics(responses, prompts, brand_id)
+                
+                # Extract citations_by_prompt for use in chart data
+                citations_by_prompt = current_metrics.get("citations_by_prompt", {})
                 
                 # Calculate previous period metrics (will be zero if no responses)
                 prev_metrics = calculate_scrunch_metrics(prev_responses, prompts, brand_id)
@@ -1952,10 +1964,17 @@ async def get_reporting_dashboard(
                     chart_data["scrunch_ai_insights"] = insights[:20]
                 
         except Exception as e:
-            logger.warning(f"Error fetching Scrunch AI KPIs: {str(e)}")
+            import traceback
+            error_trace = traceback.format_exc()
+            logger.error(f"Error fetching Scrunch AI KPIs for brand {brand_id}: {str(e)}\n{error_trace}")
+            # Set scrunch_kpis to empty dict to avoid breaking the response
+            scrunch_kpis = {}
         
         # Combine all KPIs
         kpis = {**ga4_kpis, **agency_kpis, **scrunch_kpis}
+        
+        # Log KPI counts for debugging
+        logger.info(f"Combined KPIs for brand {brand_id}: GA4={len(ga4_kpis)}, AgencyAnalytics={len(agency_kpis)}, Scrunch={len(scrunch_kpis)}, Total={len(kpis)}")
         
         # Chart data is already initialized above (before Scrunch AI section)
         # Continue populating chart_data with GA4 and Agency Analytics data

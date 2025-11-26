@@ -10,8 +10,12 @@ class Settings(BaseSettings):
     
     # Scrunch AI API Settings
     SCRUNCH_API_BASE_URL: str = "https://api.scrunchai.com/v1"
-    SCRUNCH_API_TOKEN: str = "c62a3e304839aec08441e87b727f14880d297f7713d26005c4e667e729f3bb4a"  # Can be overridden via .env
+    SCRUNCH_API_TOKEN: str = "d27cb71004e00b37a1f89e465cd18009aa2b6b176b5bb348f1fad0ba5230a5b9"
+    # "c62a3e304839aec08441e87b727f14880d297f7713d26005c4e667e729f3bb4a"  # Can be overridden via .env
     BRAND_ID: int = 3230
+    
+    # Agency Analytics API Settings
+    AGENCY_ANALYTICS_API_KEY: Optional[str] = None  # Can be overridden via .env
     
     # Google Analytics 4 API Settings
     GA4_CREDENTIALS_PATH: Optional[str] = None  # Path to service account JSON file
@@ -21,6 +25,8 @@ class Settings(BaseSettings):
     # These can be overridden via environment variables for deployment
     SUPABASE_URL: str = "https://dvmakvtrtjvffceujlfm.supabase.co"
     SUPABASE_KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2bWFrdnRydGp2ZmZjZXVqbGZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMwMjk4NjgsImV4cCI6MjA3ODYwNTg2OH0.HdpTEQskyYOsQTlfEngNkPOv_UUYkHSRKN57hjD0efw"  # anon key
+    # Note: Supabase JWT token expiration duration is configured in Supabase Dashboard
+    # Go to: Authentication → Settings → JWT expiry time (default is 3600 seconds / 1 hour)
     
     # Supabase Database Settings
     # Note: Direct connection (db.xxx.supabase.co) is IPv6-only and may not work on Windows
