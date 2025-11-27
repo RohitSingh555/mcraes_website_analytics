@@ -51,24 +51,33 @@ function SyncStatusIndicator() {
     }
   }
 
-  // Poll for job updates
+  // Poll for job updates - stop when all jobs are completed/failed/cancelled
   useEffect(() => {
     if (activeJobs.length === 0) return
 
     const interval = setInterval(async () => {
-      // Filter to only active jobs before polling
-      const trulyActiveJobs = activeJobs.filter(j => {
+      // Get current active jobs and their details
+      const currentActiveJobs = activeJobs.filter(j => {
         const details = jobDetails[j.job_id] || j
-        return details.status === 'pending' || details.status === 'running'
+        return ['pending', 'running'].includes(details.status)
       })
 
-      // Stop polling if no active jobs
-      if (trulyActiveJobs.length === 0) {
+      // Stop polling immediately if no active jobs
+      if (currentActiveJobs.length === 0) {
         clearInterval(interval)
+        // Clean up: remove all non-active jobs
+        activeJobs.forEach(job => {
+          const details = jobDetails[job.job_id] || job
+          if (['completed', 'failed', 'cancelled'].includes(details.status)) {
+            removeJob(job.job_id)
+          }
+        })
         return
       }
 
-      for (const job of trulyActiveJobs) {
+      // Poll each active job
+      const completedJobIds = []
+      for (const job of currentActiveJobs) {
         try {
           const updatedJob = await syncAPI.getSyncJobStatus(job.job_id)
           if (updatedJob) {
@@ -77,20 +86,42 @@ function SyncStatusIndicator() {
               [job.job_id]: updatedJob
             }))
             
-            // Stop polling for this specific job if it's completed or failed
-            if (updatedJob.status === 'completed' || updatedJob.status === 'failed') {
-              // Job is done, will be filtered out on next refresh
+            // Mark for removal if job is done
+            if (['completed', 'failed', 'cancelled'].includes(updatedJob.status)) {
+              completedJobIds.push(job.job_id)
             }
           }
         } catch (err) {
           console.error(`Error fetching job ${job.job_id}:`, err)
         }
       }
-      refreshJobs()
+      
+      // Remove completed jobs immediately
+      completedJobIds.forEach(jobId => {
+        removeJob(jobId)
+      })
+      
+      // Refresh jobs list to sync with backend
+      if (completedJobIds.length > 0) {
+        refreshJobs()
+      }
+      
+      // Check if we should stop polling (no active jobs remaining)
+      const remainingActive = activeJobs.filter(j => {
+        if (completedJobIds.includes(j.job_id)) {
+          return false // This job was just removed
+        }
+        const details = jobDetails[j.job_id] || j
+        return ['pending', 'running'].includes(details.status)
+      })
+      
+      if (remainingActive.length === 0) {
+        clearInterval(interval)
+      }
     }, 2000) // Poll every 2 seconds
 
     return () => clearInterval(interval)
-  }, [activeJobs, jobDetails, refreshJobs])
+  }, [activeJobs, jobDetails, refreshJobs, removeJob])
 
   if (activeJobs.length === 0) {
     return null

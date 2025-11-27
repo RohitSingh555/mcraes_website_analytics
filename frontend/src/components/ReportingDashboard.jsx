@@ -399,7 +399,9 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
 
   // Comprehensive data loading function - loads all dashboard data including KPI selections
   const loadAllData = async () => {
-    if (!selectedBrandId) return;
+    // For public view, we can use slug even without selectedBrandId
+    // For admin view, we need selectedBrandId
+    if (!selectedBrandId && !(isPublic && publicSlug)) return;
     
     // Load all data sources in parallel
     await Promise.all([
@@ -428,7 +430,9 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
   }, [isPublic, publicSlug]);
 
   useEffect(() => {
-    if (selectedBrandId) {
+    // For public mode, we can load data with just publicSlug
+    // For admin mode, we need selectedBrandId
+    if (selectedBrandId || (isPublic && publicSlug)) {
       // Clear previous data when switching brands
       setDashboardData(null);
       setScrunchData(null);
@@ -439,7 +443,7 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
       // Load all data sources in parallel including KPI selections
       loadAllData();
     }
-  }, [selectedBrandId, startDate, endDate, isPublic]);
+  }, [selectedBrandId, startDate, endDate, isPublic, publicSlug]);
 
   const loadBrands = async () => {
     try {
@@ -478,7 +482,7 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
   const handleOpenShareDialog = () => {
     if (selectedBrandSlug) {
       const baseUrl = window.location.origin;
-      const url = `${baseUrl}/reporting/${selectedBrandSlug}`;
+      const url = `${baseUrl}/reporting/client/${selectedBrandSlug}`;
       setShareableUrl(url);
       setShowShareDialog(true);
       setCopied(false);
@@ -561,7 +565,9 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
   };
 
   const loadScrunchData = async () => {
-    if (!selectedBrandId) return; // Need brandId to load Scrunch data
+    // For public view, we can use slug even without selectedBrandId
+    // For admin view, we need selectedBrandId
+    if (!selectedBrandId && !(isPublic && publicSlug)) return;
 
     try {
       setLoadingScrunch(true);
@@ -3197,26 +3203,38 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
 
                     {/* Use scrunchData if available, otherwise fall back to dashboardData */}
                     {(() => {
-                      // Prefer scrunchData, but fall back to dashboardData if scrunchData doesn't have KPIs
-                      // In public mode, scrunchData is never loaded, so always use dashboardData
+                      // Prefer scrunchData from separate endpoint (has better chart data)
+                      // Fall back to dashboardData if scrunchData is not available
                       let scrunchKPIs = {};
                       let scrunchChartData = {};
 
-                      if (
-                        !isPublic &&
-                        scrunchData?.kpis &&
-                        Object.keys(scrunchData.kpis).length > 0
-                      ) {
-                        scrunchKPIs = scrunchData.kpis;
+                      // First, check if scrunchData has chart data (this is the key for public mode)
+                      // scrunchData.chart_data has top_performing_prompts and scrunch_ai_insights
+                      const hasScrunchChartData = scrunchData?.chart_data && (
+                        (scrunchData.chart_data.top_performing_prompts?.length > 0) ||
+                        (scrunchData.chart_data.scrunch_ai_insights?.length > 0)
+                      );
+
+                      // Use scrunchData if it has KPIs or chart data
+                      if (scrunchData && (
+                        (scrunchData.kpis && Object.keys(scrunchData.kpis).length > 0) ||
+                        hasScrunchChartData
+                      )) {
+                        scrunchKPIs = scrunchData.kpis || {};
                         scrunchChartData = scrunchData.chart_data || {};
                         console.log(
-                          "Using Scrunch data from separate endpoint:",
-                          Object.keys(scrunchKPIs).length,
-                          "KPIs"
+                          `Using Scrunch data from separate endpoint ${isPublic ? '(public mode)' : '(admin mode)'}:`,
+                          {
+                            kpiCount: Object.keys(scrunchKPIs).length,
+                            hasTopPrompts: !!scrunchChartData.top_performing_prompts?.length,
+                            hasInsights: !!scrunchChartData.scrunch_ai_insights?.length,
+                            topPromptsCount: scrunchChartData.top_performing_prompts?.length || 0,
+                            insightsCount: scrunchChartData.scrunch_ai_insights?.length || 0,
+                          }
                         );
                       } else if (dashboardData?.kpis) {
+                        // Fall back to dashboardData if scrunchData is not available
                         // Filter only Scrunch KPIs from dashboardData
-                        // This is the primary source for public mode
                         const scrunchKeys = Object.keys(
                           dashboardData.kpis
                         ).filter((k) => {
@@ -3230,10 +3248,12 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                           });
                           scrunchChartData = dashboardData.chart_data || {};
                           console.log(
-                            `Using Scrunch data from main endpoint ${isPublic ? '(public mode)' : '(fallback)'}:`,
-                            scrunchKeys.length,
-                            "KPIs:",
-                            scrunchKeys
+                            `Using Scrunch data from main endpoint ${isPublic ? '(public mode fallback)' : '(fallback)'}:`,
+                            {
+                              kpiCount: scrunchKeys.length,
+                              hasTopPrompts: !!scrunchChartData.top_performing_prompts?.length,
+                              hasInsights: !!scrunchChartData.scrunch_ai_insights?.length,
+                            }
                           );
                         } else {
                           console.warn("No Scrunch KPIs found in dashboardData.kpis. Available KPIs:", 
@@ -3344,9 +3364,16 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                           )} */}
 
                           {/* Top Performing Prompts Section */}
-                          {scrunchChartData?.top_performing_prompts &&
-                            scrunchChartData.top_performing_prompts.length >
-                              0 && (
+                          {(() => {
+                              // Prioritize scrunchData.chart_data, then fall back to scrunchChartData (which may come from dashboardData)
+                              const topPrompts = scrunchData?.chart_data?.top_performing_prompts || 
+                                               scrunchChartData?.top_performing_prompts || [];
+                              
+                              if (topPrompts.length === 0) {
+                                return null;
+                              }
+                              
+                              return (
                               <Box sx={{ mb: 4 }}>
                                 <Typography
                                   variant="h6"
@@ -3375,7 +3402,7 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                                   >
                                     <CardContent sx={{ p: 3 }}>
                                       <Grid container spacing={2}>
-                                        {scrunchChartData.top_performing_prompts.map(
+                                        {topPrompts.map(
                                           (prompt) => (
                                             <Grid
                                               item
@@ -3475,15 +3502,21 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                                   </Card>
                                 </motion.div>
                               </Box>
-                            )}
+                              );
+                            })()}
 
                           {/* Scrunch AI Insights Section */}
-                          {((dashboardData?.chart_data?.scrunch_ai_insights &&
-                            dashboardData.chart_data.scrunch_ai_insights.length > 0) ||
-                            (scrunchData?.chart_data?.scrunch_ai_insights &&
-                              scrunchData.chart_data.scrunch_ai_insights.length > 0)) && (() => {
+                          {(() => {
+                              // Prioritize scrunchData.chart_data, then fall back to dashboardData.chart_data
+                              const insights = scrunchData?.chart_data?.scrunch_ai_insights || 
+                                            dashboardData?.chart_data?.scrunch_ai_insights || [];
+                              
+                              if (insights.length === 0) {
+                                return null;
+                              }
+                              
                               // Get all insights data
-                              const allInsights = scrunchData?.chart_data?.scrunch_ai_insights || dashboardData?.chart_data?.scrunch_ai_insights || [];
+                              const allInsights = insights;
                               
                               // Calculate pagination
                               const totalInsights = allInsights.length;

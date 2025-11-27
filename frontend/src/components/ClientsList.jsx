@@ -444,12 +444,13 @@ function ClientsList() {
                             </IconButton>
                           </Tooltip>
                           {client.url_slug && (
-                            <Tooltip title="View Report" arrow>
+                            <Tooltip title="Open Public Report in New Tab" arrow>
                               <IconButton
                                 size="small"
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  navigate(`/reporting/client/${client.url_slug}`)
+                                  const baseUrl = window.location.origin
+                                  window.open(`${baseUrl}/reporting/client/${client.url_slug}`, '_blank')
                                 }}
                                 sx={{
                                   color: 'text.secondary',

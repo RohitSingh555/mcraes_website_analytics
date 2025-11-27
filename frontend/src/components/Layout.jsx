@@ -43,7 +43,7 @@ const menuItems = [
   { text: 'Overview', icon: DashboardIcon, path: '/' },
   { text: 'Brands', icon: BusinessIcon, path: '/brands' },
   { text: 'Clients', icon: PeopleIcon, path: '/clients' },
-  { text: 'Analytics', icon: AnalyticsIcon, path: '/analytics' },
+  // { text: 'Analytics', icon: AnalyticsIcon, path: '/analytics' },
   { text: 'Agency Analytics', icon: AnalyticsIcon, path: '/agency-analytics' },
   { text: 'Reporting Dashboard', icon: AssessmentIcon, path: '/reporting' },
   { text: 'Sync Data', icon: SyncIcon, path: '/sync' },

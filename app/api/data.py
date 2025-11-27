@@ -2505,15 +2505,43 @@ async def get_reporting_dashboard(
 
 @router.get("/data/brands/slug/{slug}")
 async def get_brand_by_slug(slug: str):
-    """Get brand by slug for public access"""
+    """Get brand by slug for public access
+    
+    Supports both client url_slug and brand slug:
+    - First tries to find a client by url_slug, then returns the associated brand
+    - Falls back to finding a brand by slug if no client found
+    """
     try:
         supabase = SupabaseService()
         
+        # First, try to find a client by url_slug (for /reporting/client/:slug routes)
+        client = supabase.get_client_by_slug(slug)
+        if client:
+            # If client found, get the associated brand via scrunch_brand_id
+            if client.get("scrunch_brand_id"):
+                brand_id = client["scrunch_brand_id"]
+                brand_result = supabase.client.table("brands").select("*").eq("id", brand_id).execute()
+                brands = brand_result.data if hasattr(brand_result, 'data') else []
+                if brands:
+                    logger.info(f"Found client by url_slug '{slug}', returning associated brand")
+                    return brands[0]
+                else:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Client found but associated brand (id: {brand_id}) not found"
+                    )
+            else:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Client found but no brand mapping configured (scrunch_brand_id is null)"
+                )
+        
+        # Fall back to finding a brand by slug (for backward compatibility)
         brand_result = supabase.client.table("brands").select("*").eq("slug", slug).execute()
         brands = brand_result.data if hasattr(brand_result, 'data') else []
         
         if not brands:
-            raise HTTPException(status_code=404, detail="Brand not found")
+            raise HTTPException(status_code=404, detail="Brand or client not found")
         
         return brands[0]
     except HTTPException:
@@ -2528,19 +2556,42 @@ async def get_reporting_dashboard_by_slug(
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)")
 ):
-    """Get consolidated KPIs from GA4, Agency Analytics, and Scrunch for reporting dashboard by slug (public access)"""
+    """Get consolidated KPIs from GA4, Agency Analytics, and Scrunch for reporting dashboard by slug (public access)
+    
+    Supports both client url_slug and brand slug:
+    - First tries to find a client by url_slug, then uses scrunch_brand_id
+    - Falls back to finding a brand by slug if no client found
+    """
     try:
         supabase = SupabaseService()
+        brand_id = None
         
-        # Get brand by slug
-        brand_result = supabase.client.table("brands").select("*").eq("slug", slug).execute()
-        brands = brand_result.data if hasattr(brand_result, 'data') else []
+        # First, try to find a client by url_slug (for /reporting/client/:slug routes)
+        client = supabase.get_client_by_slug(slug)
+        if client:
+            # If client found, use the scrunch_brand_id from the client
+            if client.get("scrunch_brand_id"):
+                brand_id = client["scrunch_brand_id"]
+                logger.info(f"Found client by url_slug '{slug}', using scrunch_brand_id: {brand_id}")
+            else:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Client found but no brand mapping configured (scrunch_brand_id is null)"
+                )
+        else:
+            # Fall back to finding a brand by slug (for backward compatibility)
+            brand_result = supabase.client.table("brands").select("*").eq("slug", slug).execute()
+            brands = brand_result.data if hasattr(brand_result, 'data') else []
+            
+            if not brands:
+                raise HTTPException(status_code=404, detail="Brand or client not found")
+            
+            brand = brands[0]
+            brand_id = brand["id"]
+            logger.info(f"Found brand by slug '{slug}', using brand_id: {brand_id}")
         
-        if not brands:
-            raise HTTPException(status_code=404, detail="Brand not found")
-        
-        brand = brands[0]
-        brand_id = brand["id"]
+        if not brand_id:
+            raise HTTPException(status_code=404, detail="Brand ID not found")
         
         # Call the existing get_reporting_dashboard function directly instead of making HTTP request
         result = await get_reporting_dashboard(brand_id, start_date, end_date)
@@ -2562,19 +2613,42 @@ async def get_scrunch_dashboard_data_by_slug(
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)")
 ):
-    """Get Scrunch AI KPIs and chart data for reporting dashboard by slug (public access)"""
+    """Get Scrunch AI KPIs and chart data for reporting dashboard by slug (public access)
+    
+    Supports both client url_slug and brand slug:
+    - First tries to find a client by url_slug, then uses scrunch_brand_id
+    - Falls back to finding a brand by slug if no client found
+    """
     try:
         supabase = SupabaseService()
+        brand_id = None
         
-        # Get brand by slug
-        brand_result = supabase.client.table("brands").select("*").eq("slug", slug).execute()
-        brands = brand_result.data if hasattr(brand_result, 'data') else []
+        # First, try to find a client by url_slug (for /reporting/client/:slug routes)
+        client = supabase.get_client_by_slug(slug)
+        if client:
+            # If client found, use the scrunch_brand_id from the client
+            if client.get("scrunch_brand_id"):
+                brand_id = client["scrunch_brand_id"]
+                logger.info(f"Found client by url_slug '{slug}', using scrunch_brand_id: {brand_id}")
+            else:
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"Client found but no Scrunch brand mapping configured (scrunch_brand_id is null)"
+                )
+        else:
+            # Fall back to finding a brand by slug (for backward compatibility)
+            brand_result = supabase.client.table("brands").select("*").eq("slug", slug).execute()
+            brands = brand_result.data if hasattr(brand_result, 'data') else []
+            
+            if not brands:
+                raise HTTPException(status_code=404, detail="Brand or client not found")
+            
+            brand = brands[0]
+            brand_id = brand["id"]
+            logger.info(f"Found brand by slug '{slug}', using brand_id: {brand_id}")
         
-        if not brands:
-            raise HTTPException(status_code=404, detail="Brand not found")
-        
-        brand = brands[0]
-        brand_id = brand["id"]
+        if not brand_id:
+            raise HTTPException(status_code=404, detail="Brand ID not found")
         
         # Call the existing get_scrunch_dashboard_data function
         result = await get_scrunch_dashboard_data(brand_id, start_date, end_date)

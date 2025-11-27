@@ -30,17 +30,30 @@ export const SyncStatusProvider = ({ children }) => {
       const response = await syncAPI.getActiveSyncJobs()
       const jobs = response.items || []
       
-      // Filter out completed and failed jobs
+      // Filter out completed, failed, and cancelled jobs
       const activeJobsOnly = jobs.filter(job => 
         job.status === 'pending' || job.status === 'running'
       )
       
+      // Also filter current activeJobs to remove any that are now completed/failed/cancelled
+      setActiveJobs(prev => {
+        const updated = prev.filter(job => {
+          // Check if job still exists in the API response and is still active
+          const apiJob = jobs.find(j => j.job_id === job.job_id)
+          if (apiJob) {
+            return apiJob.status === 'pending' || apiJob.status === 'running'
+          }
+          // If job not in API response, check if it's in activeJobsOnly
+          return activeJobsOnly.some(j => j.job_id === job.job_id)
+        })
+        return updated
+      })
+      
+      // Update with fresh data from API
       setActiveJobs(activeJobsOnly)
       
-      // Continue polling only if there are truly active jobs
-      if (activeJobsOnly.length > 0) {
-        setPolling(true)
-      } else {
+      // Stop polling if no active jobs remain
+      if (activeJobsOnly.length === 0) {
         setPolling(false)
       }
     } catch (error) {
@@ -53,13 +66,36 @@ export const SyncStatusProvider = ({ children }) => {
     }
   }, [isAuthenticated])
 
-  // Start polling when there are active jobs
+  // Start polling when there are active jobs, stop when all jobs are done
   useEffect(() => {
-    if (polling && isAuthenticated) {
-      const interval = setInterval(pollActiveJobs, 2000) // Poll every 2 seconds
-      return () => clearInterval(interval)
+    if (!isAuthenticated) {
+      setPolling(false)
+      return
     }
-  }, [polling, pollActiveJobs, isAuthenticated])
+    
+    // Stop polling if no active jobs
+    if (activeJobs.length === 0) {
+      setPolling(false)
+      return
+    }
+    
+    // Check if any jobs are still active
+    const hasActiveJobs = activeJobs.some(job => 
+      job.status === 'pending' || job.status === 'running'
+    )
+    
+    if (!hasActiveJobs) {
+      setPolling(false)
+      return
+    }
+    
+    // Start polling interval
+    const interval = setInterval(() => {
+      pollActiveJobs()
+    }, 2000) // Poll every 2 seconds
+    
+    return () => clearInterval(interval)
+  }, [isAuthenticated, activeJobs, pollActiveJobs])
 
   // Initial poll and check for active jobs (only if authenticated)
   useEffect(() => {

@@ -36,7 +36,7 @@ function App() {
                 <Routes>
                   {/* Public routes (no authentication required) */}
                   <Route path="/login" element={<Login />} />
-                  <Route path="/reporting/:slug" element={<PublicReportingDashboard />} />
+                  <Route path="/reporting/client/:slug" element={<PublicReportingDashboard />} />
                   
                   {/* Protected routes (require authentication) */}
                   <Route
@@ -49,7 +49,7 @@ function App() {
                             <Route path="/brands" element={<BrandsList />} />
                             <Route path="/brands/:id" element={<BrandAnalyticsDetailWrapper />} />
                             <Route path="/clients" element={<ClientsList />} />
-                            <Route path="/analytics" element={<BrandAnalytics />} />
+                            {/* <Route path="/analytics" element={<BrandAnalytics />} /> */}
                             <Route path="/agency-analytics" element={<AgencyAnalytics />} />
                             <Route path="/sync" element={<SyncPanel />} />
                             <Route path="/data" element={<DataView />} />

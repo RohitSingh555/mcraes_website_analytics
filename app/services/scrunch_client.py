@@ -11,6 +11,11 @@ class ScrunchAPIClient:
     def __init__(self):
         self.base_url = settings.SCRUNCH_API_BASE_URL
         self.token = settings.SCRUNCH_API_TOKEN
+        if not self.token:
+            raise ValueError(
+                "SCRUNCH_API_TOKEN is not set. "
+                "Please set it in your .env file."
+            )
         self.headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json"

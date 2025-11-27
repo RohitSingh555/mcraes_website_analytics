@@ -7,14 +7,35 @@ services:
     ports:
       - "8000:8000"
     environment:
+      # FastAPI Settings
       - HOST=0.0.0.0
       - PORT=8000
       - DEBUG=True
-      # Add your environment variables here or use .env file
+      
+      # Supabase Settings (REST API)
+      # Uncomment and set these if not using .env file
       # - SUPABASE_URL=${SUPABASE_URL}
       # - SUPABASE_KEY=${SUPABASE_KEY}
-      # - SCRUNCH_API_TOKEN=${SCRUNCH_API_TOKEN}
+      
+      # Supabase Database Settings
+      # - SUPABASE_DB_HOST=${SUPABASE_DB_HOST}
+      # - SUPABASE_DB_PORT=${SUPABASE_DB_PORT}
+      # - SUPABASE_DB_NAME=${SUPABASE_DB_NAME}
+      # - SUPABASE_DB_USER=${SUPABASE_DB_USER}
       # - SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD}
+      # - SUPABASE_DB_URL=${SUPABASE_DB_URL}  # Alternative: use full connection string
+      
+      # Scrunch AI API Settings
+      # - SCRUNCH_API_TOKEN=${SCRUNCH_API_TOKEN}
+      
+      # Agency Analytics API Settings (optional)
+      # - AGENCY_ANALYTICS_API_KEY=${AGENCY_ANALYTICS_API_KEY}
+      
+      # OpenAI API Settings (optional)
+      # - OPENAI_API_KEY=${OPENAI_API_KEY}
+      
+      # Google Analytics 4 Settings (optional)
+      # - GA4_CREDENTIALS_PATH=${GA4_CREDENTIALS_PATH}  # Path to service account JSON file
     volumes:
       # Mount .env file if you have one
       - ./.env:/app/.env:ro
@@ -38,6 +59,10 @@ services:
     container_name: mcraes-frontend
     ports:
       - "3000:3000"
+    # Frontend API Base URL (defaults to backend service)
+    # Uncomment environment section and set if backend is on different host
+    # environment:
+    #   - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://backend:8000}
     depends_on:
       - backend
     networks:
