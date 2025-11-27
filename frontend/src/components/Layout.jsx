@@ -25,6 +25,7 @@ import {
   Analytics as AnalyticsIcon,
   Storage as StorageIcon,
   Business as BusinessIcon,
+  People as PeopleIcon,
   Assessment as AssessmentIcon,
   Computer as ComputerIcon,
   Logout as LogoutIcon,
@@ -41,6 +42,7 @@ const drawerWidth = 240
 const menuItems = [
   { text: 'Overview', icon: DashboardIcon, path: '/' },
   { text: 'Brands', icon: BusinessIcon, path: '/brands' },
+  { text: 'Clients', icon: PeopleIcon, path: '/clients' },
   { text: 'Analytics', icon: AnalyticsIcon, path: '/analytics' },
   { text: 'Agency Analytics', icon: AnalyticsIcon, path: '/agency-analytics' },
   { text: 'Reporting Dashboard', icon: AssessmentIcon, path: '/reporting' },
@@ -133,6 +135,7 @@ function Layout({ children }) {
             const isActive = location.pathname === item.path || 
                             (item.path === '/' && location.pathname === '/') ||
                             (item.path === '/brands' && location.pathname.startsWith('/brands')) ||
+                            (item.path === '/clients' && location.pathname.startsWith('/clients')) ||
                             (item.path === '/agency-analytics' && location.pathname === '/agency-analytics') ||
                             (item.path === '/reporting' && location.pathname === '/reporting')
                                         const IconComponent = item.icon

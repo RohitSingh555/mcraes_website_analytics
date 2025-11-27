@@ -7,7 +7,8 @@ import {
   Collapse,
   IconButton,
   alpha,
-  useTheme
+  useTheme,
+  Tooltip
 } from '@mui/material'
 import {
   Sync as SyncIcon,
@@ -15,16 +16,40 @@ import {
   ExpandLess as ExpandLessIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
+  Cancel as CancelIcon,
 } from '@mui/icons-material'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSyncStatus } from '../contexts/SyncStatusContext'
 import { syncAPI } from '../services/api'
 
 function SyncStatusIndicator() {
-  const { activeJobs, refreshJobs } = useSyncStatus()
+  const { activeJobs, refreshJobs, removeJob } = useSyncStatus()
   const [expanded, setExpanded] = useState(false)
   const [jobDetails, setJobDetails] = useState({})
+  const [cancellingJobs, setCancellingJobs] = useState(new Set())
   const theme = useTheme()
+  
+  const handleCancelJob = async (jobId) => {
+    if (cancellingJobs.has(jobId)) return // Already cancelling
+    
+    setCancellingJobs(prev => new Set(prev).add(jobId))
+    try {
+      await syncAPI.cancelSyncJob(jobId)
+      // Remove from active jobs immediately
+      removeJob(jobId)
+      // Refresh to get updated status
+      refreshJobs()
+    } catch (error) {
+      console.error(`Error cancelling job ${jobId}:`, error)
+      // Still remove from cancelling set
+    } finally {
+      setCancellingJobs(prev => {
+        const next = new Set(prev)
+        next.delete(jobId)
+        return next
+      })
+    }
+  }
 
   // Poll for job updates
   useEffect(() => {
@@ -162,12 +187,33 @@ function SyncStatusIndicator() {
                           <Typography variant="body2" sx={{ fontSize: '0.875rem', fontWeight: 500 }}>
                             {getSyncTypeLabel(details.sync_type || job.sync_type)}
                           </Typography>
-                          <Chip
-                            label={status === 'running' ? 'Running' : 'Pending'}
-                            size="small"
-                            color={status === 'running' ? 'primary' : 'default'}
-                            sx={{ fontSize: '0.7rem', height: 20 }}
-                          />
+                          <Box display="flex" alignItems="center" gap={0.5}>
+                            <Chip
+                              label={status === 'running' ? 'Running' : 'Pending'}
+                              size="small"
+                              color={status === 'running' ? 'primary' : 'default'}
+                              sx={{ fontSize: '0.7rem', height: 20 }}
+                            />
+                            <Tooltip title="Cancel Sync" arrow>
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleCancelJob(job.job_id)
+                                }}
+                                disabled={cancellingJobs.has(job.job_id)}
+                                sx={{
+                                  p: 0.5,
+                                  color: theme.palette.error.main,
+                                  '&:hover': {
+                                    bgcolor: alpha(theme.palette.error.main, 0.1),
+                                  },
+                                }}
+                              >
+                                <CancelIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
                         </Box>
                         {details.current_step && (
                           <Typography

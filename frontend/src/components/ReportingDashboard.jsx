@@ -255,11 +255,11 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
   const [tempSelectedKPIs, setTempSelectedKPIs] = useState(new Set(KPI_ORDER)); // For dialog
   const [showKPISelector, setShowKPISelector] = useState(false);
   const [expandedSections, setExpandedSections] = useState(new Set(["ga4", "agency_analytics", "scrunch_ai", "brand_analytics", "advanced_analytics"])); // Track expanded accordion sections
-  // Initialize with "Last 7 days" as default
+  // Initialize with "Last 30 days" as default
   const getDefaultDates = () => {
     const end = new Date();
     const start = new Date();
-    start.setDate(start.getDate() - 7);
+    start.setDate(start.getDate() - 30);
     return {
       start: start.toISOString().split("T")[0],
       end: end.toISOString().split("T")[0],
@@ -269,7 +269,7 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
   const defaultDates = getDefaultDates();
   const [startDate, setStartDate] = useState(defaultDates.start);
   const [endDate, setEndDate] = useState(defaultDates.end);
-  const [datePreset, setDatePreset] = useState("Last 7 days");
+  const [datePreset, setDatePreset] = useState("Last 30 days");
   const [brandAnalytics, setBrandAnalytics] = useState(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
@@ -561,15 +561,26 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
   };
 
   const loadScrunchData = async () => {
-    if (!selectedBrandId || isPublic) return; // Skip for public mode (use main endpoint)
+    if (!selectedBrandId) return; // Need brandId to load Scrunch data
 
     try {
       setLoadingScrunch(true);
-      const data = await reportingAPI.getScrunchDashboard(
-        selectedBrandId,
-        startDate || undefined,
-        endDate || undefined
-      );
+      // For public view, use slug-based endpoint if available, otherwise use brand_id
+      let data;
+      if (isPublic && publicSlug) {
+        // Use slug-based Scrunch endpoint for public view
+        data = await reportingAPI.getScrunchDashboardBySlug(
+          publicSlug,
+          startDate || undefined,
+          endDate || undefined
+        );
+      } else {
+        data = await reportingAPI.getScrunchDashboard(
+          selectedBrandId,
+          startDate || undefined,
+          endDate || undefined
+        );
+      }
 
       // Set scrunchData if we have KPIs or chart data, regardless of 'available' flag
       if (data && (data.kpis || data.chart_data)) {
@@ -1231,21 +1242,21 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
           </Box>
         </Box>
 
-        {/* Filters */}
-        <Paper
-          elevation={0}
-          sx={{
-            p: 2.5,
-            display: "flex",
-            gap: 2,
-            flexWrap: "wrap",
-            alignItems: "center",
-            border: `1px solid ${theme.palette.divider}`,
-            borderRadius: 2,
-            bgcolor: "background.paper",
-          }}
-        >
-          {!isPublic && (
+        {/* Filters - Hidden for public view since date range selector is commented out */}
+        {!isPublic && (
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2.5,
+              display: "flex",
+              gap: 2,
+              flexWrap: "wrap",
+              alignItems: "center",
+              border: `1px solid ${theme.palette.divider}`,
+              borderRadius: 2,
+              bgcolor: "background.paper",
+            }}
+          >
             <FormControl size="small" sx={{ minWidth: 200 }}>
               <InputLabel>Select Brand</InputLabel>
               <Select
@@ -1270,53 +1281,54 @@ function ReportingDashboard({ publicSlug, brandInfo: publicBrandInfo }) {
                 ))}
               </Select>
             </FormControl>
-          )}
 
-          <Box display="flex" alignItems="center" gap={1}>
-            <CalendarTodayIcon sx={{ fontSize: 18, color: "text.secondary" }} />
-            <FormControl size="small" sx={{ minWidth: 160 }}>
-              <InputLabel>Date Range</InputLabel>
-              <Select
-                value={datePreset}
-                label="Date Range"
-                onChange={(e) => handleDatePresetChange(e.target.value)}
-              >
-                <MenuItem value="">Custom Range</MenuItem>
-                {DATE_PRESETS.map((preset) => (
-                  <MenuItem key={preset.label} value={preset.label}>
-                    {preset.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
+            {/* Date Range Selector - Commented out per user request */}
+            {/* <Box display="flex" alignItems="center" gap={1}>
+              <CalendarTodayIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <InputLabel>Date Range</InputLabel>
+                <Select
+                  value={datePreset}
+                  label="Date Range"
+                  onChange={(e) => handleDatePresetChange(e.target.value)}
+                >
+                  <MenuItem value="">Custom Range</MenuItem>
+                  {DATE_PRESETS.map((preset) => (
+                    <MenuItem key={preset.label} value={preset.label}>
+                      {preset.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
 
-          <TextField
-            label="Start Date"
-            type="date"
-            size="small"
-            value={startDate || ""}
-            onChange={(e) => {
-              setStartDate(e.target.value);
-              setDatePreset(""); // Clear preset when manually selecting dates
-            }}
-            InputLabelProps={{ shrink: true }}
-            sx={{ minWidth: 150 }}
-          />
+            <TextField
+              label="Start Date"
+              type="date"
+              size="small"
+              value={startDate || ""}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setDatePreset(""); // Clear preset when manually selecting dates
+              }}
+              InputLabelProps={{ shrink: true }}
+              sx={{ minWidth: 150 }}
+            />
 
-          <TextField
-            label="End Date"
-            type="date"
-            size="small"
-            value={endDate || ""}
-            onChange={(e) => {
-              setEndDate(e.target.value);
-              setDatePreset(""); // Clear preset when manually selecting dates
-            }}
-            InputLabelProps={{ shrink: true }}
-            sx={{ minWidth: 150 }}
-          />
-        </Paper>
+            <TextField
+              label="End Date"
+              type="date"
+              size="small"
+              value={endDate || ""}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setDatePreset(""); // Clear preset when manually selecting dates
+              }}
+              InputLabelProps={{ shrink: true }}
+              sx={{ minWidth: 150 }}
+            /> */}
+          </Paper>
+        )}
       </Box>
 
       {error && (

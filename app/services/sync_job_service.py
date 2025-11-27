@@ -19,6 +19,7 @@ class SyncJobService:
     def __init__(self):
         self.supabase = SupabaseService()
         self.running_jobs: Dict[str, asyncio.Task] = {}
+        self.cancelled_jobs: set = set()  # Track cancelled job IDs
     
     def _generate_job_id(self) -> str:
         """Generate unique job ID"""
@@ -174,11 +175,56 @@ class SyncJobService:
             logger.error(f"Failed to get active jobs: {str(e)}")
             return []
     
+    def is_cancelled(self, job_id: str) -> bool:
+        """Check if a job has been cancelled"""
+        return job_id in self.cancelled_jobs
+    
+    async def cancel_job(self, job_id: str) -> bool:
+        """Cancel a running job"""
+        try:
+            # Mark as cancelled
+            self.cancelled_jobs.add(job_id)
+            
+            # Update job status in database
+            await self.update_job_status(
+                job_id=job_id,
+                status="cancelled",
+                current_step="Cancelled by user"
+            )
+            
+            # Cancel the running task if it exists
+            if job_id in self.running_jobs:
+                task = self.running_jobs[job_id]
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    logger.info(f"Job {job_id} task cancelled")
+                finally:
+                    if job_id in self.running_jobs:
+                        del self.running_jobs[job_id]
+            
+            # Remove from cancelled set after cleanup
+            self.cancelled_jobs.discard(job_id)
+            
+            logger.info(f"Cancelled sync job {job_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error cancelling job {job_id}: {str(e)}")
+            return False
+    
     def run_background_task(self, task_coro, job_id: str):
         """Run a task in the background and track it"""
         async def wrapped_task():
             try:
                 await task_coro
+            except asyncio.CancelledError:
+                logger.info(f"Background task {job_id} was cancelled")
+                await self.update_job_status(
+                    job_id=job_id,
+                    status="cancelled",
+                    current_step="Cancelled by user"
+                )
             except Exception as e:
                 logger.error(f"Background task {job_id} failed: {str(e)}")
                 await self.fail_job(job_id, str(e))
@@ -186,6 +232,8 @@ class SyncJobService:
                 # Clean up running job reference
                 if job_id in self.running_jobs:
                     del self.running_jobs[job_id]
+                if job_id in self.cancelled_jobs:
+                    self.cancelled_jobs.discard(job_id)
         
         task = asyncio.create_task(wrapped_task())
         self.running_jobs[job_id] = task

@@ -163,15 +163,54 @@ class GA4APIClient:
                 totals["averageSessionDuration"] = totals["averageSessionDuration"] / count
                 totals["engagementRate"] = totals["engagementRate"] / count
             
+            # Store daily breakdown for later use
+            daily_data = []
+            for row in response.rows:
+                date_str = row.dimension_values[0].value  # First dimension is date
+                daily_record = {
+                    "date": date_str,
+                    "users": 0,
+                    "sessions": 0,
+                    "newUsers": 0,
+                    "bounceRate": 0,
+                    "averageSessionDuration": 0,
+                    "engagedSessions": 0,
+                    "engagementRate": 0,
+                }
+                for i, metric_value in enumerate(row.metric_values):
+                    metric_name = request.metrics[i].name
+                    value = float(metric_value.value)
+                    if metric_name == "activeUsers":
+                        daily_record["users"] = int(value)
+                    elif metric_name == "sessions":
+                        daily_record["sessions"] = int(value)
+                    elif metric_name == "newUsers":
+                        daily_record["newUsers"] = int(value)
+                    elif metric_name == "bounceRate":
+                        daily_record["bounceRate"] = value
+                    elif metric_name == "averageSessionDuration":
+                        daily_record["averageSessionDuration"] = value
+                    elif metric_name == "engagedSessions":
+                        daily_record["engagedSessions"] = int(value)
+                    elif metric_name == "engagementRate":
+                        daily_record["engagementRate"] = value
+                daily_data.append(daily_record)
+            
+            # Add daily_data to totals for storage
+            totals["daily_data"] = daily_data
+            
             # Calculate month-over-month comparison
             # Get previous period data for comparison
-            # NOTE: This uses a FIXED 60-day lookback period, not the same duration as current period
-            prev_start = (datetime.strptime(start_date, "%Y-%m-%d") - timedelta(days=60)).strftime("%Y-%m-%d")
-            prev_end = (datetime.strptime(start_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+            # Use the same duration as current period (not a fixed 60-day lookback)
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+            period_duration = (end_dt - start_dt).days + 1  # Include both start and end dates
+            prev_end = (start_dt - timedelta(days=1)).strftime("%Y-%m-%d")
+            prev_start = (start_dt - timedelta(days=period_duration)).strftime("%Y-%m-%d")
             
-            logger.info(f"[GA4 CLIENT] get_traffic_overview - Calculating change using FIXED 60-day lookback")
-            logger.info(f"[GA4 CLIENT] Current period: {start_date} to {end_date}")
-            logger.info(f"[GA4 CLIENT] Previous period (60-day lookback): {prev_start} to {prev_end}")
+            logger.info(f"[GA4 CLIENT] get_traffic_overview - Calculating change using same-duration period")
+            logger.info(f"[GA4 CLIENT] Current period: {start_date} to {end_date} (duration: {period_duration} days)")
+            logger.info(f"[GA4 CLIENT] Previous period: {prev_start} to {prev_end} (duration: {period_duration} days)")
             logger.info(f"[GA4 CLIENT] Current values - users: {totals.get('users')}, sessions: {totals.get('sessions')}, newUsers: {totals.get('newUsers')}")
             
             try:
@@ -221,7 +260,7 @@ class GA4APIClient:
                 
                 if prev_totals["sessions"] > 0:
                     totals["sessionsChange"] = ((totals["sessions"] - prev_totals["sessions"]) / prev_totals["sessions"]) * 100
-                    logger.info(f"[GA4 CLIENT] sessionsChange calculated (60-day lookback): {totals['sessionsChange']}%")
+                    logger.info(f"[GA4 CLIENT] sessionsChange calculated (same-duration period): {totals['sessionsChange']}%")
                     logger.info(f"[GA4 CLIENT] Formula: (({totals['sessions']} - {prev_totals['sessions']}) / {prev_totals['sessions']}) * 100")
                 else:
                     totals["sessionsChange"] = 0

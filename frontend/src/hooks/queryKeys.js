@@ -45,5 +45,16 @@ export const queryKeys = {
     all: ['agency-analytics'],
     campaigns: () => [...queryKeys.agencyAnalytics.all, 'campaigns'],
   },
+
+  // Clients
+  clients: {
+    all: ['clients'],
+    lists: () => [...queryKeys.clients.all, 'list'],
+    list: (filters) => [...queryKeys.clients.lists(), { filters }],
+    details: () => [...queryKeys.clients.all, 'detail'],
+    detail: (id) => [...queryKeys.clients.details(), id],
+    bySlug: (slug) => [...queryKeys.clients.all, 'slug', slug],
+    campaigns: (id) => [...queryKeys.clients.detail(id), 'campaigns'],
+  },
 }
 

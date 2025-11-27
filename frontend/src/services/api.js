@@ -145,6 +145,12 @@ export const syncAPI = {
     return response.data
   },
 
+  // Cancel a sync job
+  cancelSyncJob: async (jobId) => {
+    const response = await api.post(`/api/v1/sync/jobs/${jobId}/cancel`)
+    return response.data
+  },
+
   // Get data from database (you'll need to add these endpoints to the backend)
   getBrands: async (limit = 50, offset = 0) => {
     const params = new URLSearchParams()
@@ -395,6 +401,75 @@ export const agencyAnalyticsAPI = {
   },
 }
 
+// Client Management API endpoints
+export const clientAPI = {
+  // Get all clients with pagination and search
+  getClients: async (page = 1, pageSize = 25, search = '') => {
+    const params = new URLSearchParams()
+    params.append('page', page)
+    params.append('page_size', pageSize)
+    if (search && search.trim()) {
+      params.append('search', search.trim())
+    }
+    
+    const response = await api.get(`/api/v1/data/clients?${params.toString()}`)
+    return response.data
+  },
+
+  // Get client by ID
+  getClient: async (clientId) => {
+    const response = await api.get(`/api/v1/data/clients/${clientId}`)
+    return response.data
+  },
+
+  // Get client by slug (public)
+  getClientBySlug: async (urlSlug) => {
+    const response = await api.get(`/api/v1/data/clients/slug/${urlSlug}`)
+    return response.data
+  },
+
+  // Update client mappings
+  updateClientMappings: async (clientId, mappings) => {
+    const response = await api.put(`/api/v1/data/clients/${clientId}/mappings`, mappings)
+    return response.data
+  },
+
+  // Update client theme
+  updateClientTheme: async (clientId, theme) => {
+    const response = await api.put(`/api/v1/data/clients/${clientId}/theme`, theme)
+    return response.data
+  },
+
+  // Get client campaigns
+  getClientCampaigns: async (clientId) => {
+    const response = await api.get(`/api/v1/data/clients/${clientId}/campaigns`)
+    return response.data
+  },
+
+  // Upload client logo
+  uploadClientLogo: async (clientId, file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    const response = await api.post(
+      `/api/v1/data/clients/${clientId}/logo`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    )
+    return response.data
+  },
+
+  // Delete client logo
+  deleteClientLogo: async (clientId) => {
+    const response = await api.delete(`/api/v1/data/clients/${clientId}/logo`)
+    return response.data
+  },
+}
+
 // Reporting Dashboard API endpoints
 export const reportingAPI = {
   // Get consolidated reporting dashboard KPIs
@@ -449,6 +524,16 @@ export const reportingAPI = {
     if (endDate) params.append('end_date', endDate)
     
     const response = await api.get(`/api/v1/data/reporting-dashboard/${brandId}/scrunch?${params.toString()}`)
+    return response.data
+  },
+  
+  // Get Scrunch dashboard data by slug (for public access)
+  getScrunchDashboardBySlug: async (slug, startDate = null, endDate = null) => {
+    const params = new URLSearchParams()
+    if (startDate) params.append('start_date', startDate)
+    if (endDate) params.append('end_date', endDate)
+    
+    const response = await api.get(`/api/v1/data/reporting-dashboard/slug/${slug}/scrunch?${params.toString()}`)
     return response.data
   },
   

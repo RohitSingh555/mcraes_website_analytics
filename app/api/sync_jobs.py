@@ -62,4 +62,53 @@ async def get_sync_jobs(
     }
 
 
+@router.post("/sync/jobs/{job_id}/cancel")
+@handle_api_errors(context="cancelling sync job")
+async def cancel_sync_job(
+    job_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Cancel a running sync job"""
+    job = await sync_job_service.get_job(job_id)
+    
+    if not job:
+        from app.core.exceptions import NotFoundException
+        raise NotFoundException(
+            user_message=f"Sync job '{job_id}' not found.",
+            technical_message=f"Job {job_id} not found"
+        )
+    
+    # Check if user has access to this job
+    if job.get("user_email") != current_user["email"]:
+        from app.core.exceptions import AuthenticationException
+        raise AuthenticationException(
+            user_message="You don't have permission to cancel this job.",
+            technical_message="Job belongs to different user"
+        )
+    
+    # Check if job can be cancelled
+    if job.get("status") not in ["pending", "running"]:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job is already {job.get('status')} and cannot be cancelled."
+        )
+    
+    # Cancel the job
+    success = await sync_job_service.cancel_job(job_id)
+    
+    if success:
+        return {
+            "status": "success",
+            "message": f"Sync job '{job_id}' has been cancelled.",
+            "job_id": job_id
+        }
+    else:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to cancel the sync job."
+        )
+
+
 

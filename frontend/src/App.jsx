@@ -11,6 +11,7 @@ import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import Dashboard from './components/Dashboard'
 import BrandsList from './components/BrandsList'
+import ClientsList from './components/ClientsList'
 import BrandAnalytics from './components/BrandAnalytics'
 import BrandAnalyticsDetailWrapper from './components/BrandAnalyticsDetailWrapper'
 import SyncPanel from './components/SyncPanel'
@@ -47,6 +48,7 @@ function App() {
                             <Route path="/" element={<Dashboard />} />
                             <Route path="/brands" element={<BrandsList />} />
                             <Route path="/brands/:id" element={<BrandAnalyticsDetailWrapper />} />
+                            <Route path="/clients" element={<ClientsList />} />
                             <Route path="/analytics" element={<BrandAnalytics />} />
                             <Route path="/agency-analytics" element={<AgencyAnalytics />} />
                             <Route path="/sync" element={<SyncPanel />} />
