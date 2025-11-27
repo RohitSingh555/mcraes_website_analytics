@@ -6,6 +6,7 @@ import CssBaseline from '@mui/material/CssBaseline'
 import { AuthProvider } from './contexts/AuthContext'
 import { ToastProvider } from './contexts/ToastContext'
 import { SyncStatusProvider } from './contexts/SyncStatusContext'
+import { WebSocketProvider } from './contexts/WebSocketContext'
 import { queryClient } from './lib/queryClient'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -31,9 +32,10 @@ function App() {
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <AuthProvider>
-          <ToastProvider>
-            <SyncStatusProvider>
-              <Router>
+          <WebSocketProvider>
+            <ToastProvider>
+              <SyncStatusProvider>
+                <Router>
                 <Routes>
                   {/* Public routes (no authentication required) */}
                   <Route path="/login" element={<Login />} />
@@ -64,6 +66,7 @@ function App() {
               </Router>
             </SyncStatusProvider>
           </ToastProvider>
+          </WebSocketProvider>
         </AuthProvider>
       </ThemeProvider>
       {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}

@@ -3242,6 +3242,7 @@ async def query_scrunch_analytics(
 class KPISelectionRequest(BaseModel):
     selected_kpis: List[str]
     visible_sections: Optional[List[str]] = None  # Optional for backward compatibility
+    version: Optional[int] = None  # Version for optimistic locking
 
 @router.get("/data/reporting-dashboard/{brand_id}/kpi-selections")
 @handle_api_errors(context="fetching KPI selections")
@@ -3261,7 +3262,7 @@ async def get_brand_kpi_selections(brand_id: int):
         # Removed unnecessary brand check - if brand doesn't exist, this will just return empty
         query_start = time.time()
         selection_result = supabase.client.table("brand_kpi_selections").select(
-            "selected_kpis,visible_sections,updated_at"
+            "selected_kpis,visible_sections,updated_at,version,last_modified_by"
         ).eq("brand_id", brand_id).limit(1).execute()
         query_time = time.time() - query_start
         
@@ -3276,7 +3277,9 @@ async def get_brand_kpi_selections(brand_id: int):
                 "brand_id": brand_id,
                 "selected_kpis": selection.get("selected_kpis", []),
                 "visible_sections": selection.get("visible_sections", ["ga4", "scrunch_ai", "brand_analytics", "advanced_analytics", "performance_metrics"]),
-                "updated_at": selection.get("updated_at")
+                "updated_at": selection.get("updated_at"),
+                "version": selection.get("version", 1),
+                "last_modified_by": selection.get("last_modified_by")
             }
         else:
             # Return default values if no selection exists (means all sections and KPIs are shown)
@@ -3284,7 +3287,9 @@ async def get_brand_kpi_selections(brand_id: int):
                 "brand_id": brand_id,
                 "selected_kpis": [],
                 "visible_sections": ["ga4", "scrunch_ai", "brand_analytics", "advanced_analytics", "performance_metrics"],
-                "updated_at": None
+                "updated_at": None,
+                "version": 1,
+                "last_modified_by": None
             }
         
         total_time = time.time() - start_time
@@ -3301,8 +3306,15 @@ async def get_brand_kpi_selections(brand_id: int):
 
 @router.put("/data/reporting-dashboard/{brand_id}/kpi-selections")
 @handle_api_errors(context="saving KPI selections")
-async def save_brand_kpi_selections(brand_id: int, request: KPISelectionRequest):
+async def save_brand_kpi_selections(
+    brand_id: int,
+    request: KPISelectionRequest,
+    current_user: dict = Depends(get_current_user)
+):
     """Save KPI selections for a brand (used by managers/admins to control public view visibility)"""
+    from app.services.websocket_manager import websocket_manager
+    from datetime import datetime
+    
     try:
         supabase = SupabaseService()
         
@@ -3313,11 +3325,33 @@ async def save_brand_kpi_selections(brand_id: int, request: KPISelectionRequest)
         if not brands:
             raise HTTPException(status_code=404, detail="Brand not found")
         
+        # Get current KPI selection record to check version
+        existing_result = supabase.client.table("brand_kpi_selections").select("version, selected_kpis, visible_sections, last_modified_by").eq("brand_id", brand_id).execute()
+        existing = existing_result.data if hasattr(existing_result, 'data') else []
+        
+        # Version conflict check (only if version is provided and record exists)
+        if request.version is not None and existing and len(existing) > 0:
+            current_version = existing[0].get("version", 1)
+            if request.version != current_version:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "error": "conflict",
+                        "message": "Resource was modified by another user. Please refresh and try again.",
+                        "current_version": current_version,
+                        "current_data": {
+                            "selected_kpis": existing[0].get("selected_kpis", []),
+                            "visible_sections": existing[0].get("visible_sections", []),
+                            "last_modified_by": existing[0].get("last_modified_by")
+                        }
+                    }
+                )
+        
         # Upsert KPI selections (insert or update)
-        # Use upsert to handle both insert and update in one operation
         selection_data = {
             "brand_id": brand_id,
-            "selected_kpis": request.selected_kpis
+            "selected_kpis": request.selected_kpis,
+            "last_modified_by": current_user.get("email")
         }
         
         # Add visible_sections if provided, otherwise use default (all sections)
@@ -3325,8 +3359,6 @@ async def save_brand_kpi_selections(brand_id: int, request: KPISelectionRequest)
             selection_data["visible_sections"] = request.visible_sections
         else:
             # If not provided, keep existing sections or use default
-            existing_result = supabase.client.table("brand_kpi_selections").select("visible_sections").eq("brand_id", brand_id).execute()
-            existing = existing_result.data if hasattr(existing_result, 'data') else []
             if existing and len(existing) > 0 and existing[0].get("visible_sections"):
                 selection_data["visible_sections"] = existing[0]["visible_sections"]
             else:
@@ -3337,12 +3369,30 @@ async def save_brand_kpi_selections(brand_id: int, request: KPISelectionRequest)
             on_conflict="brand_id"
         ).execute()
         
-        logger.info(f"Saved KPI selections for brand {brand_id}: {len(request.selected_kpis)} KPIs, {len(selection_data.get('visible_sections', []))} sections")
+        # Get updated version
+        updated_result = supabase.client.table("brand_kpi_selections").select("version").eq("brand_id", brand_id).execute()
+        updated_version = updated_result.data[0].get("version", 1) if updated_result.data else 1
+        
+        logger.info(f"Saved KPI selections for brand {brand_id}: {len(request.selected_kpis)} KPIs, {len(selection_data.get('visible_sections', []))} sections, version={updated_version}")
+        
+        # Broadcast WebSocket notification
+        try:
+            await websocket_manager.notify_resource_updated(
+                resource_type="kpi_selection",
+                resource_id=brand_id,
+                updated_by=current_user.get("email"),
+                updated_at=datetime.utcnow().isoformat() + "Z",
+                version=updated_version,
+                exclude_user_id=current_user.get("id")
+            )
+        except Exception as ws_error:
+            logger.warning(f"Failed to send WebSocket notification: {str(ws_error)}")
         
         return {
             "brand_id": brand_id,
             "selected_kpis": request.selected_kpis,
             "visible_sections": selection_data.get("visible_sections", []),
+            "version": updated_version,
             "message": "KPI and section selections saved successfully"
         }
     except HTTPException:
@@ -3357,6 +3407,7 @@ async def save_brand_kpi_selections(brand_id: int, request: KPISelectionRequest)
 
 class GA4PropertyUpdateRequest(BaseModel):
     ga4_property_id: Optional[str] = None
+    version: Optional[int] = None  # Version for optimistic locking
 
 @router.put("/data/brands/{brand_id}/ga4-property-id")
 @handle_api_errors(context="updating GA4 property ID")
@@ -3366,29 +3417,69 @@ async def update_brand_ga4_property_id(
     current_user: dict = Depends(get_current_user)
 ):
     """Update GA4 Property ID for a brand"""
+    from app.services.websocket_manager import websocket_manager
+    from datetime import datetime
+    
     try:
         supabase = SupabaseService()
         
-        # Check if brand exists
-        brand_result = supabase.client.table("brands").select("id").eq("id", brand_id).execute()
+        # Get current brand to check version
+        brand_result = supabase.client.table("brands").select("id, version, ga4_property_id, last_modified_by").eq("id", brand_id).execute()
         brands = brand_result.data if hasattr(brand_result, 'data') else []
         
         if not brands:
             raise HTTPException(status_code=404, detail="Brand not found")
         
+        current_brand = brands[0]
+        current_version = current_brand.get("version", 1)
+        
+        # Version conflict check
+        if request.version is not None and request.version != current_version:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": "conflict",
+                    "message": "Resource was modified by another user. Please refresh and try again.",
+                    "current_version": current_version,
+                    "current_data": {
+                        "ga4_property_id": current_brand.get("ga4_property_id"),
+                        "last_modified_by": current_brand.get("last_modified_by")
+                    }
+                }
+            )
+        
         # Update GA4 property ID (set to None if empty string or None)
         ga4_property_id = request.ga4_property_id
         update_data = {
-            "ga4_property_id": ga4_property_id if ga4_property_id else None
+            "ga4_property_id": ga4_property_id if ga4_property_id else None,
+            "last_modified_by": current_user.get("email")
         }
         
         result = supabase.client.table("brands").update(update_data).eq("id", brand_id).execute()
         
-        logger.info(f"Updated GA4 property ID for brand {brand_id} by user {current_user.get('email')}")
+        # Get updated version
+        updated_result = supabase.client.table("brands").select("version").eq("id", brand_id).execute()
+        updated_version = updated_result.data[0].get("version", 1) if updated_result.data else 1
+        
+        logger.info(f"Updated GA4 property ID for brand {brand_id} by user {current_user.get('email')}, version={updated_version}")
+        
+        # Broadcast WebSocket notification
+        try:
+            await websocket_manager.notify_resource_updated(
+                resource_type="brand",
+                resource_id=brand_id,
+                updated_by=current_user.get("email"),
+                updated_at=datetime.utcnow().isoformat() + "Z",
+                version=updated_version,
+                exclude_user_id=current_user.get("id")
+            )
+        except Exception as ws_error:
+            logger.warning(f"Failed to send WebSocket notification: {str(ws_error)}")
         
         return {
             "brand_id": brand_id,
             "ga4_property_id": update_data["ga4_property_id"],
+            "version": updated_version,
             "message": "GA4 Property ID updated successfully"
         }
     except HTTPException:
@@ -3542,6 +3633,7 @@ class ThemeUpdateRequest(BaseModel):
     accent_color: Optional[str] = None
     font_family: Optional[str] = None
     custom: Optional[Dict] = None
+    version: Optional[int] = None  # Version for optimistic locking
 
 @router.post("/data/brands/{brand_id}/logo")
 @handle_api_errors(context="uploading brand logo")
@@ -3704,18 +3796,39 @@ async def update_brand_theme(
     current_user: dict = Depends(get_current_user)
 ):
     """Update brand theme configuration"""
+    from app.services.websocket_manager import websocket_manager
+    from datetime import datetime
+    
     try:
         supabase = SupabaseService()
         
-        # Check if brand exists
-        brand_result = supabase.client.table("brands").select("id, theme").eq("id", brand_id).execute()
+        # Get current brand to check version
+        brand_result = supabase.client.table("brands").select("id, version, theme, last_modified_by").eq("id", brand_id).execute()
         brands = brand_result.data if hasattr(brand_result, 'data') else []
         
         if not brands:
             raise HTTPException(status_code=404, detail="Brand not found")
         
+        current_brand = brands[0]
+        current_version = current_brand.get("version", 1)
+        
+        # Version conflict check
+        if request.version is not None and request.version != current_version:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": "conflict",
+                    "message": "Resource was modified by another user. Please refresh and try again.",
+                    "current_version": current_version,
+                    "current_data": {
+                        "theme": current_brand.get("theme"),
+                        "last_modified_by": current_brand.get("last_modified_by")
+                    }
+                }
+            )
+        
         # Get existing theme or initialize empty dict
-        existing_theme = brands[0].get("theme") or {}
+        existing_theme = current_brand.get("theme") or {}
         if not isinstance(existing_theme, dict):
             existing_theme = {}
         
@@ -3733,14 +3846,35 @@ async def update_brand_theme(
             updated_theme["custom"] = request.custom
         
         # Update brand theme
-        update_data = {"theme": updated_theme}
+        update_data = {
+            "theme": updated_theme,
+            "last_modified_by": current_user.get("email")
+        }
         result = supabase.client.table("brands").update(update_data).eq("id", brand_id).execute()
         
-        logger.info(f"Updated theme for brand {brand_id} by user {current_user.get('email')}")
+        # Get updated version
+        updated_result = supabase.client.table("brands").select("version").eq("id", brand_id).execute()
+        updated_version = updated_result.data[0].get("version", 1) if updated_result.data else 1
+        
+        logger.info(f"Updated theme for brand {brand_id} by user {current_user.get('email')}, version={updated_version}")
+        
+        # Broadcast WebSocket notification
+        try:
+            await websocket_manager.notify_resource_updated(
+                resource_type="brand",
+                resource_id=brand_id,
+                updated_by=current_user.get("email"),
+                updated_at=datetime.utcnow().isoformat() + "Z",
+                version=updated_version,
+                exclude_user_id=current_user.get("id")
+            )
+        except Exception as ws_error:
+            logger.warning(f"Failed to send WebSocket notification: {str(ws_error)}")
         
         return {
             "brand_id": brand_id,
             "theme": updated_theme,
+            "version": updated_version,
             "message": "Theme updated successfully"
         }
     except HTTPException:
@@ -3846,6 +3980,7 @@ async def get_client_by_slug(
 class ClientMappingUpdateRequest(BaseModel):
     ga4_property_id: Optional[str] = None
     scrunch_brand_id: Optional[int] = None
+    version: Optional[int] = None  # Version for optimistic locking
 
 @router.put("/data/clients/{client_id}/mappings")
 @handle_api_errors(context="updating client mappings")
@@ -3855,13 +3990,37 @@ async def update_client_mappings(
     current_user: dict = Depends(get_current_user)
 ):
     """Update client mappings (GA4 property ID and/or Scrunch brand ID)"""
+    from app.services.websocket_manager import websocket_manager
+    from datetime import datetime
+    
     try:
         supabase = SupabaseService()
         
-        # Check if client exists
-        client = supabase.get_client_by_id(client_id)
-        if not client:
+        # Get current client to check version
+        client_result = supabase.client.table("clients").select("id, version, ga4_property_id, scrunch_brand_id, last_modified_by").eq("id", client_id).execute()
+        clients = client_result.data if hasattr(client_result, 'data') else []
+        
+        if not clients:
             raise HTTPException(status_code=404, detail="Client not found")
+        
+        current_client = clients[0]
+        current_version = current_client.get("version", 1)
+        
+        # Version conflict check
+        if request.version is not None and request.version != current_version:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": "conflict",
+                    "message": "Resource was modified by another user. Please refresh and try again.",
+                    "current_version": current_version,
+                    "current_data": {
+                        "ga4_property_id": current_client.get("ga4_property_id"),
+                        "scrunch_brand_id": current_client.get("scrunch_brand_id"),
+                        "last_modified_by": current_client.get("last_modified_by")
+                    }
+                }
+            )
         
         success = supabase.update_client_mapping(
             client_id=client_id,
@@ -3873,7 +4032,28 @@ async def update_client_mappings(
         if not success:
             raise HTTPException(status_code=500, detail="Failed to update client mappings")
         
-        return {"status": "success", "message": "Client mappings updated successfully"}
+        # Get updated version
+        updated_result = supabase.client.table("clients").select("version").eq("id", client_id).execute()
+        updated_version = updated_result.data[0].get("version", 1) if updated_result.data else 1
+        
+        # Broadcast WebSocket notification
+        try:
+            await websocket_manager.notify_resource_updated(
+                resource_type="client",
+                resource_id=client_id,
+                updated_by=current_user.get("email"),
+                updated_at=datetime.utcnow().isoformat() + "Z",
+                version=updated_version,
+                exclude_user_id=current_user.get("id")
+            )
+        except Exception as ws_error:
+            logger.warning(f"Failed to send WebSocket notification: {str(ws_error)}")
+        
+        return {
+            "status": "success",
+            "message": "Client mappings updated successfully",
+            "version": updated_version
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -3890,6 +4070,7 @@ class ClientThemeUpdateRequest(BaseModel):
     custom_css: Optional[str] = None
     footer_text: Optional[str] = None
     header_text: Optional[str] = None
+    version: Optional[int] = None  # Version for optimistic locking
 
 @router.put("/data/clients/{client_id}/theme")
 @handle_api_errors(context="updating client theme")
@@ -3899,13 +4080,44 @@ async def update_client_theme(
     current_user: dict = Depends(get_current_user)
 ):
     """Update client theme and branding"""
+    from app.services.websocket_manager import websocket_manager
+    from datetime import datetime
+    
     try:
         supabase = SupabaseService()
         
-        # Check if client exists
-        client = supabase.get_client_by_id(client_id)
-        if not client:
+        # Get current client to check version
+        client_result = supabase.client.table("clients").select("id, version, theme_color, logo_url, secondary_color, font_family, favicon_url, report_title, custom_css, footer_text, header_text, last_modified_by").eq("id", client_id).execute()
+        clients = client_result.data if hasattr(client_result, 'data') else []
+        
+        if not clients:
             raise HTTPException(status_code=404, detail="Client not found")
+        
+        current_client = clients[0]
+        current_version = current_client.get("version", 1)
+        
+        # Version conflict check
+        if request.version is not None and request.version != current_version:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": "conflict",
+                    "message": "Resource was modified by another user. Please refresh and try again.",
+                    "current_version": current_version,
+                    "current_data": {
+                        "theme_color": current_client.get("theme_color"),
+                        "logo_url": current_client.get("logo_url"),
+                        "secondary_color": current_client.get("secondary_color"),
+                        "font_family": current_client.get("font_family"),
+                        "favicon_url": current_client.get("favicon_url"),
+                        "report_title": current_client.get("report_title"),
+                        "custom_css": current_client.get("custom_css"),
+                        "footer_text": current_client.get("footer_text"),
+                        "header_text": current_client.get("header_text"),
+                        "last_modified_by": current_client.get("last_modified_by")
+                    }
+                }
+            )
         
         theme_data = {
             "theme_color": request.theme_color,
@@ -3928,7 +4140,28 @@ async def update_client_theme(
         if not success:
             raise HTTPException(status_code=500, detail="Failed to update client theme")
         
-        return {"status": "success", "message": "Client theme updated successfully"}
+        # Get updated version
+        updated_result = supabase.client.table("clients").select("version").eq("id", client_id).execute()
+        updated_version = updated_result.data[0].get("version", 1) if updated_result.data else 1
+        
+        # Broadcast WebSocket notification
+        try:
+            await websocket_manager.notify_resource_updated(
+                resource_type="client",
+                resource_id=client_id,
+                updated_by=current_user.get("email"),
+                updated_at=datetime.utcnow().isoformat() + "Z",
+                version=updated_version,
+                exclude_user_id=current_user.get("id")
+            )
+        except Exception as ws_error:
+            logger.warning(f"Failed to send WebSocket notification: {str(ws_error)}")
+        
+        return {
+            "status": "success",
+            "message": "Client theme updated successfully",
+            "version": updated_version
+        }
     except HTTPException:
         raise
     except Exception as e:

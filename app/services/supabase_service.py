@@ -1304,6 +1304,7 @@ class SupabaseService:
         try:
             update_data = {
                 "updated_by": user_email,
+                "last_modified_by": user_email,
                 "updated_at": datetime.now().isoformat()
             }
             
@@ -1325,6 +1326,7 @@ class SupabaseService:
         try:
             update_data = {
                 "updated_by": user_email,
+                "last_modified_by": user_email,
                 "updated_at": datetime.now().isoformat()
             }
             

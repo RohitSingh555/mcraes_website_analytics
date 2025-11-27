@@ -28,9 +28,11 @@ class Brand(Base):
     website = Column(String, nullable=True)
     ga4_property_id = Column(String, nullable=True)  # Google Analytics 4 Property ID
     created_at = Column(DateTime(timezone=True), nullable=True)
+    version = Column(Integer, nullable=False, default=1)  # Version for optimistic locking
+    last_modified_by = Column(String, nullable=True)  # Email of user who last modified
     
     def __repr__(self):
-        return f"<Brand(id={self.id}, name='{self.name}')>"
+        return f"<Brand(id={self.id}, name='{self.name}', version={self.version})>"
 
 
 class Prompt(Base):

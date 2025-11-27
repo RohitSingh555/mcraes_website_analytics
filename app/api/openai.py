@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Body
+from fastapi import APIRouter, HTTPException, Depends, Body, Query
 from typing import Optional, List, Dict
 from pydantic import BaseModel, Field
 import logging
@@ -152,4 +152,162 @@ async def get_model(
     except Exception as e:
         logger.error(f"Error getting model information: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error getting model information: {str(e)}")
+
+class MetricReviewRequest(BaseModel):
+    brand_id: int = Field(..., description="Brand ID to analyze")
+    data_source: str = Field(..., description="Data source to review: 'ga4', 'agency_analytics', or 'scrunch'")
+    start_date: Optional[str] = Field(None, description="Start date (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="End date (YYYY-MM-DD)")
+
+@router.post("/openai/metrics/review")
+@handle_api_errors(context="generating metric review")
+async def generate_metric_review(
+    request: MetricReviewRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Generate an AI-powered review of metrics for a specific data source
+    
+    Analyzes KPIs from the specified data source (GA4, Agency Analytics, or Scrunch)
+    and generates insights about what's performing well, trends, and recommendations.
+    """
+    try:
+        # Validate data source
+        valid_sources = ["ga4", "agency_analytics", "scrunch"]
+        if request.data_source.lower() not in valid_sources:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid data source. Must be one of: {', '.join(valid_sources)}"
+            )
+        
+        # Import the dashboard function to fetch KPIs
+        from app.api.data import get_reporting_dashboard
+        
+        # Fetch dashboard data to get KPIs
+        dashboard_data = await get_reporting_dashboard(
+            request.brand_id,
+            request.start_date,
+            request.end_date
+        )
+        
+        # Filter KPIs by data source
+        source_kpis = {}
+        source_mapping = {
+            "ga4": "GA4",
+            "agency_analytics": "AgencyAnalytics",
+            "scrunch": "Scrunch"
+        }
+        target_source = source_mapping[request.data_source.lower()]
+        
+        if not dashboard_data.get("kpis"):
+            raise HTTPException(
+                status_code=404,
+                detail=f"No KPIs found for brand {request.brand_id}"
+            )
+        
+        # Filter KPIs by source
+        for kpi_key, kpi_data in dashboard_data["kpis"].items():
+            if kpi_data.get("source") == target_source:
+                source_kpis[kpi_key] = kpi_data
+        
+        if not source_kpis:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No {request.data_source} KPIs found for this brand. Make sure the data source is configured."
+            )
+        
+        # Prepare metrics summary for OpenAI
+        metrics_summary = []
+        for kpi_key, kpi_data in source_kpis.items():
+            metric_info = {
+                "metric": kpi_data.get("label", kpi_key),
+                "value": kpi_data.get("value"),
+                "change": kpi_data.get("change"),
+                "format": kpi_data.get("format", "number")
+            }
+            metrics_summary.append(metric_info)
+        
+        # Create prompt for OpenAI
+        data_source_names = {
+            "ga4": "Google Analytics 4",
+            "agency_analytics": "Agency Analytics (SEO)",
+            "scrunch": "Scrunch AI"
+        }
+        source_name = data_source_names[request.data_source.lower()]
+        
+        prompt = f"""You are an expert analytics consultant reviewing {source_name} metrics for a brand.
+
+Analyze the following metrics and provide a comprehensive review focusing on:
+1. What's performing well (highlight strong metrics and positive trends)
+2. Key insights and patterns
+3. Notable changes from the previous period
+4. Overall performance assessment
+
+Metrics Data:
+{format_metrics_for_prompt(metrics_summary)}
+
+Date Range: {dashboard_data.get('date_range', {}).get('start_date', 'N/A')} to {dashboard_data.get('date_range', {}).get('end_date', 'N/A')}
+
+Provide a clear, professional review (2-3 paragraphs) that highlights what's good and performing well. Be specific about the metrics and their significance. Use a positive, analytical tone."""
+        
+        # Generate review using OpenAI
+        messages = [
+            {
+                "role": "system",
+                "content": "You are an expert analytics consultant who provides clear, insightful reviews of marketing and analytics metrics. Focus on positive performance indicators and actionable insights."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+        
+        result = await openai_client.create_chat_completion(
+            messages=messages,
+            model="gpt-4o-mini",
+            temperature=0.7,
+            max_tokens=500
+        )
+        
+        # Extract the review text
+        review_text = ""
+        if result.get("choices") and len(result["choices"]) > 0:
+            review_text = result["choices"][0].get("message", {}).get("content", "")
+        
+        return {
+            "brand_id": request.brand_id,
+            "brand_name": dashboard_data.get("brand_name"),
+            "data_source": request.data_source,
+            "date_range": dashboard_data.get("date_range"),
+            "metrics_analyzed": len(source_kpis),
+            "review": review_text,
+            "metrics": metrics_summary
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating metric review: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error generating metric review: {str(e)}")
+
+def format_metrics_for_prompt(metrics: List[Dict]) -> str:
+    """Format metrics data for OpenAI prompt"""
+    formatted = []
+    for metric in metrics:
+        value_str = str(metric["value"])
+        if metric.get("format") == "percentage":
+            value_str = f"{metric['value']}%"
+        elif metric.get("format") == "currency":
+            value_str = f"${metric['value']:,.2f}"
+        else:
+            value_str = f"{metric['value']:,}" if isinstance(metric['value'], (int, float)) else str(metric['value'])
+        
+        change_str = ""
+        if metric.get("change") is not None:
+            change_direction = "↑" if metric["change"] > 0 else "↓" if metric["change"] < 0 else "→"
+            change_str = f" ({change_direction} {abs(metric['change']):.1f}% vs previous period)"
+        
+        formatted.append(f"- {metric['metric']}: {value_str}{change_str}")
+    
+    return "\n".join(formatted)
 

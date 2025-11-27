@@ -89,6 +89,32 @@ class SyncJobService:
         
         try:
             self.supabase.client.table("sync_jobs").update(update_data).eq("job_id", job_id).execute()
+            
+            # Send WebSocket notification for status changes
+            try:
+                from app.services.websocket_manager import websocket_manager
+                job = await self.get_job(job_id)
+                if job:
+                    sync_type = job.get("sync_type", "unknown")
+                    parameters = job.get("parameters", {})
+                    brand_id = parameters.get("brand_id")
+                    
+                    if status == "running":
+                        message = f"Sync started: {current_step or 'Processing...'}"
+                    elif status in ["completed", "failed", "cancelled"]:
+                        message = f"Sync {status}: {current_step or 'Finished'}"
+                    else:
+                        message = current_step or f"Sync {status}"
+                    
+                    await websocket_manager.notify_sync_status(
+                        sync_type=sync_type,
+                        brand_id=brand_id,
+                        status=status,
+                        message=message,
+                        job_id=job_id
+                    )
+            except Exception as ws_error:
+                logger.warning(f"Failed to send WebSocket notification for job {job_id}: {str(ws_error)}")
         except Exception as e:
             logger.error(f"Failed to update job {job_id}: {str(e)}")
     
@@ -110,6 +136,26 @@ class SyncJobService:
         try:
             self.supabase.client.table("sync_jobs").update(update_data).eq("job_id", job_id).execute()
             logger.info(f"Completed sync job {job_id}")
+            
+            # Send WebSocket notification
+            try:
+                from app.services.websocket_manager import websocket_manager
+                job = await self.get_job(job_id)
+                if job:
+                    sync_type = job.get("sync_type", "unknown")
+                    parameters = job.get("parameters", {})
+                    brand_id = parameters.get("brand_id")
+                    message = result.get("message", f"Sync {status} successfully")
+                    
+                    await websocket_manager.notify_sync_status(
+                        sync_type=sync_type,
+                        brand_id=brand_id,
+                        status=status,
+                        message=message,
+                        job_id=job_id
+                    )
+            except Exception as ws_error:
+                logger.warning(f"Failed to send WebSocket notification for job {job_id}: {str(ws_error)}")
         except Exception as e:
             logger.error(f"Failed to complete job {job_id}: {str(e)}")
     

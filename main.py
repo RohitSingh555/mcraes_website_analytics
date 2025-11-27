@@ -4,7 +4,7 @@ from fastapi.exceptions import RequestValidationError, HTTPException
 from contextlib import asynccontextmanager
 import uvicorn
 from app.core.config import settings
-from app.api import sync, data, database, auth, audit, sync_jobs, openai
+from app.api import sync, data, database, auth, audit, sync_jobs, openai, websocket
 from app.db.database import init_db, check_db_connection
 from app.core.logging_config import setup_logging
 from app.core.error_handlers import (
@@ -76,6 +76,7 @@ app.include_router(data.router, prefix="/api/v1", tags=["data"])
 app.include_router(database.router, prefix="/api/v1", tags=["database"])
 app.include_router(audit.router, prefix="/api/v1", tags=["audit"])
 app.include_router(openai.router, prefix="/api/v1", tags=["openai"])
+app.include_router(websocket.router, prefix="/api/v1", tags=["websocket"])
 
 @app.get("/")
 async def root():

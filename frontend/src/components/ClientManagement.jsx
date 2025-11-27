@@ -34,10 +34,12 @@ import {
   Palette as PaletteIcon,
   Business as BusinessIcon,
   Campaign as CampaignIcon,
+  Warning as WarningIcon,
 } from '@mui/icons-material'
 import { clientAPI, dataAPI, ga4API } from '../services/api'
 import { useToast } from '../contexts/ToastContext'
 import { getErrorMessage } from '../utils/errorHandler'
+import { useResourceSubscription } from '../hooks/useResourceSubscription'
 
 function ClientManagement({ open, onClose, client }) {
   const theme = useTheme()
@@ -64,6 +66,23 @@ function ClientManagement({ open, onClose, client }) {
   const [saving, setSaving] = useState(false)
   const [brandsLoading, setBrandsLoading] = useState(false)
   const [ga4PropertiesLoading, setGa4PropertiesLoading] = useState(false)
+  const [clientVersion, setClientVersion] = useState(null)
+  const [conflictDialog, setConflictDialog] = useState(null)
+  
+  // Subscribe to client updates
+  useResourceSubscription(
+    'client',
+    client?.id,
+    {
+      showNotifications: true,
+      onUpdate: (message) => {
+        // Reload client data when updated by another user
+        if (open && client) {
+          loadClientData()
+        }
+      }
+    }
+  )
 
   useEffect(() => {
     if (open && client) {
@@ -76,29 +95,35 @@ function ClientManagement({ open, onClose, client }) {
     
     setLoading(true)
     try {
+      // Reload client to get latest version
+      const freshClient = await clientAPI.getClient(client.id)
+      
+      // Store version
+      setClientVersion(freshClient.version || 1)
+      
       // Load GA4 property ID
-      setGa4PropertyId(client.ga4_property_id || '')
+      setGa4PropertyId(freshClient.ga4_property_id || '')
       
       // Load Scrunch brand ID
-      setScrunchBrandId(client.scrunch_brand_id || '')
+      setScrunchBrandId(freshClient.scrunch_brand_id || '')
       
       // Load logo URL
-      setLogoUrl(client.logo_url || '')
+      setLogoUrl(freshClient.logo_url || '')
       setLogoFile(null)
       setLogoPreview(null)
       
       // Load theme
       setClientTheme({
-        theme_color: client.theme_color || '',
-        secondary_color: client.secondary_color || '',
-        font_family: client.font_family || '',
+        theme_color: freshClient.theme_color || '',
+        secondary_color: freshClient.secondary_color || '',
+        font_family: freshClient.font_family || '',
       })
       
       // Load whitelabeling fields
-      setReportTitle(client.report_title || '')
-      setCustomCss(client.custom_css || '')
-      setFooterText(client.footer_text || '')
-      setHeaderText(client.header_text || '')
+      setReportTitle(freshClient.report_title || '')
+      setCustomCss(freshClient.custom_css || '')
+      setFooterText(freshClient.footer_text || '')
+      setHeaderText(freshClient.header_text || '')
       
       // Load linked campaigns
       await loadLinkedCampaigns()
@@ -110,6 +135,27 @@ function ClientManagement({ open, onClose, client }) {
     } finally {
       setLoading(false)
     }
+  }
+  
+  const handleConflict = (error) => {
+    const conflictData = error.response?.data?.detail
+    if (conflictData && conflictData.error === 'conflict') {
+      setConflictDialog({
+        open: true,
+        message: conflictData.message,
+        currentVersion: conflictData.current_version,
+        currentData: conflictData.current_data,
+        onRefresh: () => {
+          setConflictDialog(null)
+          loadClientData()
+        },
+        onCancel: () => {
+          setConflictDialog(null)
+        }
+      })
+      return true
+    }
+    return false
   }
 
   const loadLinkedCampaigns = async () => {
@@ -148,14 +194,27 @@ function ClientManagement({ open, onClose, client }) {
     
     setSaving(true)
     try {
-      await clientAPI.updateClientMappings(client.id, {
+      const response = await clientAPI.updateClientMappings(client.id, {
         ga4_property_id: ga4PropertyId || null,
         scrunch_brand_id: scrunchBrandId ? parseInt(scrunchBrandId) : null,
+        version: clientVersion,
       })
+      
+      // Update version from response
+      if (response.version) {
+        setClientVersion(response.version)
+      }
+      
       showSuccess('Client mappings updated successfully')
       onClose()
     } catch (err) {
-      showError(getErrorMessage(err))
+      if (err.response?.status === 409) {
+        if (!handleConflict(err)) {
+          showError(getErrorMessage(err))
+        }
+      } else {
+        showError(getErrorMessage(err))
+      }
     } finally {
       setSaving(false)
     }
@@ -217,7 +276,7 @@ function ClientManagement({ open, onClose, client }) {
     
     setSaving(true)
     try {
-      await clientAPI.updateClientTheme(client.id, {
+      const response = await clientAPI.updateClientTheme(client.id, {
         theme_color: clientTheme.theme_color,
         secondary_color: clientTheme.secondary_color,
         font_family: clientTheme.font_family,
@@ -226,11 +285,24 @@ function ClientManagement({ open, onClose, client }) {
         custom_css: customCss,
         footer_text: footerText,
         header_text: headerText,
+        version: clientVersion,
       })
+      
+      // Update version from response
+      if (response.version) {
+        setClientVersion(response.version)
+      }
+      
       showSuccess('Client theme updated successfully')
       onClose()
     } catch (err) {
-      showError(getErrorMessage(err))
+      if (err.response?.status === 409) {
+        if (!handleConflict(err)) {
+          showError(getErrorMessage(err))
+        }
+      } else {
+        showError(getErrorMessage(err))
+      }
     } finally {
       setSaving(false)
     }
@@ -724,6 +796,49 @@ function ClientManagement({ open, onClose, client }) {
           }}
         >
           Close
+        </Button>
+      </DialogActions>
+    </Dialog>
+    
+    {/* Conflict Dialog */}
+    <Dialog
+      open={conflictDialog?.open || false}
+      onClose={() => setConflictDialog(null)}
+      maxWidth="sm"
+      fullWidth
+    >
+      <DialogTitle>
+        <Box display="flex" alignItems="center" gap={1}>
+          <WarningIcon color="warning" />
+          Conflict Detected
+        </Box>
+      </DialogTitle>
+      <DialogContent>
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          {conflictDialog?.message || 'This resource was modified by another user.'}
+        </Alert>
+        {conflictDialog?.currentData?.last_modified_by && (
+          <Typography variant="body2" color="text.secondary" paragraph>
+            Last modified by: <strong>{conflictDialog.currentData.last_modified_by}</strong>
+          </Typography>
+        )}
+        <Typography variant="body2" color="text.secondary">
+          Current version: <strong>{conflictDialog?.currentVersion || 'Unknown'}</strong>
+        </Typography>
+        <Typography variant="body2" sx={{ mt: 2 }}>
+          Would you like to refresh and see the latest changes?
+        </Typography>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setConflictDialog(null)}>
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={conflictDialog?.onRefresh}
+        >
+          Refresh
         </Button>
       </DialogActions>
     </Dialog>
