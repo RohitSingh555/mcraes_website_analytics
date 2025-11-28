@@ -38,7 +38,7 @@ import {
   Warning as WarningIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material'
-import { clientAPI, dataAPI, ga4API } from '../services/api'
+import { clientAPI, dataAPI, ga4API, agencyAnalyticsAPI } from '../services/api'
 import { useToast } from '../contexts/ToastContext'
 import { getErrorMessage } from '../utils/errorHandler'
 
@@ -62,15 +62,21 @@ function ClientManagement({ open, onClose, client }) {
   const [headerText, setHeaderText] = useState('')
   const [linkedCampaigns, setLinkedCampaigns] = useState([])
   const [availableBrands, setAvailableBrands] = useState([])
+  const [availableCampaigns, setAvailableCampaigns] = useState([])
   const [availableGA4Properties, setAvailableGA4Properties] = useState([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [brandsLoading, setBrandsLoading] = useState(false)
+  const [campaignsLoading, setCampaignsLoading] = useState(false)
   const [ga4PropertiesLoading, setGa4PropertiesLoading] = useState(false)
   const [brandSearchTerm, setBrandSearchTerm] = useState('')
+  const [campaignSearchTerm, setCampaignSearchTerm] = useState('')
   const [brandsPage, setBrandsPage] = useState(0)
+  const [campaignsPage, setCampaignsPage] = useState(0)
   const [hasMoreBrands, setHasMoreBrands] = useState(true)
+  const [hasMoreCampaigns, setHasMoreCampaigns] = useState(true)
   const searchTimeoutRef = useRef(null)
+  const campaignSearchTimeoutRef = useRef(null)
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false)
   const [conflictData, setConflictData] = useState(null)
   const [pendingMappings, setPendingMappings] = useState(null)
@@ -86,10 +92,13 @@ function ClientManagement({ open, onClose, client }) {
       setHasMoreBrands(true)
     }
     
-    // Cleanup timeout on unmount
+    // Cleanup timeouts on unmount
     return () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current)
+      }
+      if (campaignSearchTimeoutRef.current) {
+        clearTimeout(campaignSearchTimeoutRef.current)
       }
     }
   }, [open, client])
@@ -131,6 +140,9 @@ function ClientManagement({ open, onClose, client }) {
       
       // Load initial brands (first page)
       await loadBrands('', 0, false)
+      
+      // Load initial campaigns (first page)
+      await loadCampaigns('', 0, false)
       
       // If client has a scrunch_brand_id, find and set it in autocomplete
       if (client.scrunch_brand_id) {
@@ -207,6 +219,31 @@ function ClientManagement({ open, onClose, client }) {
     }
   }
 
+  const loadCampaigns = async (searchTerm = '', page = 0, append = false) => {
+    setCampaignsLoading(true)
+    try {
+      const pageSize = 50
+      const pageNumber = page + 1 // API uses 1-indexed pages
+      console.log('Loading campaigns:', { searchTerm, page, pageNumber, pageSize })
+      const campaignsResponse = await agencyAnalyticsAPI.getCampaigns(pageNumber, pageSize, searchTerm)
+      console.log('Campaigns response:', campaignsResponse)
+      const newCampaigns = campaignsResponse.items || []
+      
+      if (append) {
+        setAvailableCampaigns(prev => [...prev, ...newCampaigns])
+      } else {
+        setAvailableCampaigns(newCampaigns)
+      }
+      
+      setHasMoreCampaigns(newCampaigns.length === pageSize)
+    } catch (err) {
+      console.error('Error loading campaigns:', err)
+      showError(getErrorMessage(err))
+    } finally {
+      setCampaignsLoading(false)
+    }
+  }
+
   const handleBrandSearchChange = (event, newValue) => {
     // This handles when a brand is selected from the dropdown
     if (newValue === null) {
@@ -229,6 +266,62 @@ function ClientManagement({ open, onClose, client }) {
       const nextPage = brandsPage + 1
       setBrandsPage(nextPage)
       loadBrands(brandSearchTerm, nextPage, true)
+    }
+  }
+
+  const handleCampaignSearchChange = (event, newValue) => {
+    // This handles when a campaign is selected from the dropdown
+    if (newValue === null) {
+      // Don't clear on null - allow manual selection
+      return
+    } else if (typeof newValue === 'object' && newValue !== null) {
+      // Campaign object selected - link it to client
+      handleLinkCampaign(newValue.id)
+    }
+  }
+
+  const handleCampaignListboxScroll = (event) => {
+    const listboxNode = event.currentTarget
+    if (
+      listboxNode.scrollTop + listboxNode.clientHeight >= listboxNode.scrollHeight - 5 &&
+      hasMoreCampaigns &&
+      !campaignsLoading
+    ) {
+      const nextPage = campaignsPage + 1
+      setCampaignsPage(nextPage)
+      loadCampaigns(campaignSearchTerm, nextPage, true)
+    }
+  }
+
+  const handleLinkCampaign = async (campaignId, isPrimary = false) => {
+    if (!client) return
+    
+    setSaving(true)
+    try {
+      await clientAPI.linkClientCampaign(client.id, campaignId, isPrimary)
+      showSuccess('Campaign linked successfully')
+      await loadLinkedCampaigns()
+      // Clear campaign search
+      setCampaignSearchTerm('')
+    } catch (err) {
+      showError(getErrorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleUnlinkCampaign = async (campaignId) => {
+    if (!client) return
+    
+    setSaving(true)
+    try {
+      await clientAPI.unlinkClientCampaign(client.id, campaignId)
+      showSuccess('Campaign unlinked successfully')
+      await loadLinkedCampaigns()
+    } catch (err) {
+      showError(getErrorMessage(err))
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -773,7 +866,7 @@ function ClientManagement({ open, onClose, client }) {
                   )}
                 </Grid>
                 
-                <Grid item xs={12}>
+                {/* <Grid item xs={12}>
                   <TextField
                     fullWidth
                     label="Font Family"
@@ -782,7 +875,7 @@ function ClientManagement({ open, onClose, client }) {
                     placeholder="Arial, sans-serif"
                     helperText="CSS font-family value"
                   />
-                </Grid>
+                </Grid> */}
                 
                 <Grid item xs={12}>
                   <TextField
@@ -797,9 +890,9 @@ function ClientManagement({ open, onClose, client }) {
               </Grid>
             </Box>
 
+            {/* Whitelabeling Section - Commented out
             <Divider sx={{ my: 3 }} />
 
-            {/* Whitelabeling Section */}
             <Box mb={4}>
               <Typography variant="subtitle1" fontWeight={600} mb={2}>
                 Whitelabeling Content
@@ -836,7 +929,7 @@ function ClientManagement({ open, onClose, client }) {
                     label="Custom CSS"
                     value={customCss}
                     onChange={(e) => setCustomCss(e.target.value)}
-                    placeholder="/* Custom CSS for whitelabeled reports */"
+                    placeholder="Custom CSS for whitelabeled reports"
                     multiline
                     rows={6}
                     helperText="Custom CSS to apply to whitelabeled reports"
@@ -852,15 +945,78 @@ function ClientManagement({ open, onClose, client }) {
             </Box>
 
             <Divider sx={{ my: 3 }} />
+            */}
 
             {/* Linked Campaigns Section */}
             <Box mb={2}>
               <Typography variant="subtitle1" fontWeight={600} mb={2}>
                 Linked Campaigns
               </Typography>
+              
+              {/* Add Campaign Autocomplete */}
+              <Box mb={2}>
+                <Autocomplete
+                  options={availableCampaigns}
+                  getOptionLabel={(option) => {
+                    if (typeof option === 'string') return option
+                    return `${option.company || `Campaign ${option.id}`}${option.url ? ` - ${option.url}` : ''}`
+                  }}
+                  value={null}
+                  onChange={handleCampaignSearchChange}
+                  onInputChange={(event, newInputValue, reason) => {
+                    // Handle search input changes
+                    if (reason === 'input') {
+                      setCampaignSearchTerm(newInputValue)
+                      setCampaignsPage(0)
+                      // Clear previous timeout
+                      if (campaignSearchTimeoutRef.current) {
+                        clearTimeout(campaignSearchTimeoutRef.current)
+                      }
+                      // Debounce the search
+                      campaignSearchTimeoutRef.current = setTimeout(() => {
+                        loadCampaigns(newInputValue, 0, false)
+                      }, 300)
+                    }
+                  }}
+                  inputValue={campaignSearchTerm}
+                  loading={campaignsLoading}
+                  disabled={saving}
+                  filterOptions={(x) => x} // Disable client-side filtering, we do it server-side
+                  ListboxProps={{
+                    onScroll: handleCampaignListboxScroll,
+                    style: { maxHeight: 300 }
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Add Campaign"
+                      placeholder="Search campaigns..."
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {campaignsLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
+                  renderOption={(props, option) => (
+                    <Box component="li" {...props} key={option.id}>
+                      <Typography variant="body2">
+                        {option.company || `Campaign ${option.id}`} {option.url ? `(${option.url})` : ''}
+                      </Typography>
+                    </Box>
+                  )}
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                  noOptionsText={campaignsLoading ? 'Loading...' : 'No campaigns found'}
+                />
+              </Box>
+              
               {linkedCampaigns.length === 0 ? (
                 <Typography variant="body2" color="text.secondary">
-                  No campaigns linked to this client
+                  No campaigns linked to this client. Use the search above to add campaigns.
                 </Typography>
               ) : (
                 <List>
@@ -882,11 +1038,26 @@ function ClientManagement({ open, onClose, client }) {
                           secondary={campaign.url || `Campaign ID: ${link.campaign_id}`}
                         />
                         <ListItemSecondaryAction>
-                          <Chip
-                            label={link.is_primary ? 'Primary' : 'Linked'}
-                            size="small"
-                            color={link.is_primary ? 'primary' : 'default'}
-                          />
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Chip
+                              label={link.is_primary ? 'Primary' : 'Linked'}
+                              size="small"
+                              color={link.is_primary ? 'primary' : 'default'}
+                            />
+                            <IconButton
+                              size="small"
+                              onClick={() => handleUnlinkCampaign(link.campaign_id)}
+                              disabled={saving}
+                              sx={{
+                                color: theme.palette.error.main,
+                                '&:hover': {
+                                  bgcolor: alpha(theme.palette.error.main, 0.1),
+                                },
+                              }}
+                            >
+                              <LinkOffIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
                         </ListItemSecondaryAction>
                       </ListItem>
                     )

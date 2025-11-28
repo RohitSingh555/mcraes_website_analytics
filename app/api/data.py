@@ -798,16 +798,63 @@ async def get_brands_with_ga4():
 # =====================================================
 
 @router.get("/data/agency-analytics/campaigns")
-async def get_agency_analytics_campaigns():
-    """Get all Agency Analytics campaigns from database"""
+async def get_agency_analytics_campaigns(
+    page: Optional[int] = Query(1, description="Page number (1-indexed)"),
+    page_size: Optional[int] = Query(50, description="Number of records per page"),
+    search: Optional[str] = Query(None, description="Search by company name or URL"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get Agency Analytics campaigns with pagination and search"""
     try:
         supabase = SupabaseService()
-        result = supabase.client.table("agency_analytics_campaigns").select("*").order("id", desc=True).execute()
-        campaigns = result.data if hasattr(result, 'data') else []
+        
+        # Build query - fetch more records if searching to allow filtering
+        # For search, we'll fetch a larger set and filter in Python
+        fetch_size = page_size * 10 if search and search.strip() else page_size
+        
+        query = supabase.client.table("agency_analytics_campaigns").select("*", count="exact")
+        
+        # Order by id descending
+        query = query.order("id", desc=True)
+        
+        # If searching, fetch a larger set to filter from
+        if search and search.strip():
+            search_term_lower = search.strip().lower()
+            # Fetch a larger set for filtering
+            query = query.limit(fetch_size)
+            result = query.execute()
+            all_campaigns = result.data if hasattr(result, 'data') else []
+            
+            # Filter in Python for company name or URL
+            filtered_campaigns = [
+                c for c in all_campaigns
+                if (c.get("company", "").lower().find(search_term_lower) >= 0 or
+                    (c.get("url", "") or "").lower().find(search_term_lower) >= 0)
+            ]
+            
+            # Calculate total count (approximate for search)
+            total_count = len(filtered_campaigns)
+            
+            # Apply pagination
+            offset = (page - 1) * page_size
+            campaigns = filtered_campaigns[offset:offset + page_size]
+            total_pages = (total_count + page_size - 1) // page_size if page_size > 0 else 0
+        else:
+            # No search - use normal pagination
+            offset = (page - 1) * page_size
+            query = query.range(offset, offset + page_size - 1)
+            
+            result = query.execute()
+            campaigns = result.data if hasattr(result, 'data') else []
+            total_count = result.count if hasattr(result, 'count') else len(campaigns)
+            total_pages = (total_count + page_size - 1) // page_size if page_size > 0 else 0
         
         return {
-            "campaigns": campaigns,
-            "count": len(campaigns)
+            "items": campaigns,
+            "total_count": total_count,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages
         }
     except Exception as e:
         logger.error(f"Error fetching campaigns: {str(e)}")
@@ -4158,30 +4205,22 @@ async def get_clients(
             search_term = search.strip()
             query = query.ilike("company_name", f"%{search_term}%")
         
-        # Get all results first (we'll filter for active campaigns in Python)
-        all_result = query.execute()
-        all_items = all_result.data if hasattr(all_result, 'data') else []
-        
-        # Filter to only clients with active campaigns
-        filtered_items = []
-        for item in all_items:
-            campaigns = item.get("client_campaigns", [])
-            has_active = False
-            for campaign_link in campaigns:
-                campaign = campaign_link.get("agency_analytics_campaigns")
-                if campaign and campaign.get("status", "").lower() == "active":
-                    has_active = True
-                    break
-            if has_active:
-                filtered_items.append(item)
-        
-        # Calculate total count after filtering
-        total_count = len(filtered_items)
+        # Order by company name for consistent results
+        query = query.order("company_name", desc=False)
         
         # Apply pagination
-        start_idx = offset
-        end_idx = offset + page_size
-        items = filtered_items[start_idx:end_idx]
+        query = query.range(offset, offset + page_size - 1)
+        
+        # Execute query
+        result = query.execute()
+        all_items = result.data if hasattr(result, 'data') else []
+        total_count = result.count if hasattr(result, 'count') else len(all_items)
+        
+        # Calculate total pages
+        total_pages = (total_count + page_size - 1) // page_size if page_size > 0 else 0
+        
+        # Use all items (no filtering - show all clients regardless of campaign status)
+        items = all_items
         
         # For each client, get keywords from their campaigns
         for item in items:
@@ -4490,14 +4529,14 @@ async def upload_client_logo(
         file_path = filename
         
         # Upload to Supabase Storage using Supabase client
-        # The bucket name is 'client-logos', file path is just the filename
+        # The bucket name is 'brand-logos', file path is just the filename
         try:
-            logger.info(f"Uploading client logo to storage: bucket=client-logos, path={file_path}, size={len(file_content)} bytes, content-type={file.content_type}")
+            logger.info(f"Uploading client logo to storage: bucket=brand-logos, path={file_path}, size={len(file_content)} bytes, content-type={file.content_type}")
             
             responseBuckets = supabase.client.storage.list_buckets()
             logger.info(f"Buckets: {responseBuckets}")
             # Upload using Supabase storage client
-            storage_response = supabase.client.storage.from_("client-logos").upload(
+            storage_response = supabase.client.storage.from_("brand-logos").upload(
                 file=file_content,
                 path=file_path,
                 file_options={
@@ -4511,7 +4550,7 @@ async def upload_client_logo(
             
             # Get public URL using Supabase client
             try:
-                public_url_response = supabase.client.storage.from_("client-logos").get_public_url(file_path)
+                public_url_response = supabase.client.storage.from_("brand-logos").get_public_url(file_path)
                 if isinstance(public_url_response, str):
                     logo_url = public_url_response
                 elif hasattr(public_url_response, 'get'):
@@ -4525,7 +4564,7 @@ async def upload_client_logo(
             # Construct public URL manually if Supabase client method fails
             if not logo_url:
                 project_ref = settings.SUPABASE_URL.replace('https://', '').replace('.supabase.co', '')
-                logo_url = f"https://{project_ref}.supabase.co/storage/v1/object/public/client-logos/{file_path}"
+                logo_url = f"https://{project_ref}.supabase.co/storage/v1/object/public/brand-logos/{file_path}"
             
             logger.info(f"Final logo URL: {logo_url}")
             
@@ -4574,16 +4613,16 @@ async def delete_client_logo(
         if logo_url:
             try:
                 # Extract file path from URL
-                if "client-logos/" in logo_url:
-                    file_path = logo_url.split("client-logos/")[-1].split("?")[0]
-                elif "/object/public/client-logos/" in logo_url:
-                    file_path = logo_url.split("/object/public/client-logos/")[-1].split("?")[0]
+                if "brand-logos/" in logo_url:
+                    file_path = logo_url.split("brand-logos/")[-1].split("?")[0]
+                elif "/object/public/brand-logos/" in logo_url:
+                    file_path = logo_url.split("/object/public/brand-logos/")[-1].split("?")[0]
                 else:
                     file_path = logo_url.split("/")[-1].split("?")[0]
                 
                 if file_path:
                     logger.info(f"Deleting file from storage: {file_path}")
-                    supabase.client.storage.from_("client-logos").remove([file_path])
+                    supabase.client.storage.from_("brand-logos").remove([file_path])
             except Exception as storage_error:
                 logger.warning(f"Failed to delete logo from storage: {str(storage_error)}")
         
@@ -4629,6 +4668,111 @@ async def get_client_campaigns(
         raise
     except Exception as e:
         logger.error(f"Error fetching client campaigns: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/data/clients/{client_id}/campaigns/{campaign_id}/link")
+@handle_api_errors(context="linking campaign to client")
+async def link_client_campaign(
+    client_id: int,
+    campaign_id: int,
+    is_primary: Optional[bool] = Query(False, description="Mark as primary campaign"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Link a campaign to a client"""
+    try:
+        supabase = SupabaseService()
+        
+        # Check if client exists
+        client = supabase.get_client_by_id(client_id)
+        if not client:
+            raise HTTPException(status_code=404, detail="Client not found")
+        
+        # Check if campaign exists
+        campaign_result = supabase.client.table("agency_analytics_campaigns").select("id").eq("id", campaign_id).execute()
+        campaigns = campaign_result.data if hasattr(campaign_result, 'data') else []
+        
+        if not campaigns:
+            raise HTTPException(status_code=404, detail="Agency Analytics campaign not found")
+        
+        # Check if link already exists
+        existing_link_result = supabase.client.table("client_campaigns").select("*").eq("client_id", client_id).eq("campaign_id", campaign_id).execute()
+        existing_links = existing_link_result.data if hasattr(existing_link_result, 'data') else []
+        
+        if existing_links:
+            # Update existing link
+            update_data = {"is_primary": is_primary}
+            result = supabase.client.table("client_campaigns").update(update_data).eq("client_id", client_id).eq("campaign_id", campaign_id).execute()
+            logger.info(f"Updated campaign {campaign_id} link for client {client_id} by user {current_user.get('email')}")
+            return {
+                "client_id": client_id,
+                "campaign_id": campaign_id,
+                "is_primary": is_primary,
+                "message": "Campaign link updated successfully"
+            }
+        
+        # If setting as primary, unset other primary campaigns
+        if is_primary:
+            supabase.client.table("client_campaigns").update({"is_primary": False}).eq("client_id", client_id).execute()
+        
+        # Create new link
+        link_data = {
+            "client_id": client_id,
+            "campaign_id": campaign_id,
+            "is_primary": is_primary
+        }
+        result = supabase.client.table("client_campaigns").insert(link_data).execute()
+        
+        logger.info(f"Linked campaign {campaign_id} to client {client_id} by user {current_user.get('email')}")
+        
+        return {
+            "client_id": client_id,
+            "campaign_id": campaign_id,
+            "is_primary": is_primary,
+            "message": "Campaign linked successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error linking campaign to client: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/data/clients/{client_id}/campaigns/{campaign_id}/link")
+@handle_api_errors(context="unlinking campaign from client")
+async def unlink_client_campaign(
+    client_id: int,
+    campaign_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Unlink a campaign from a client"""
+    try:
+        supabase = SupabaseService()
+        
+        # Check if client exists
+        client = supabase.get_client_by_id(client_id)
+        if not client:
+            raise HTTPException(status_code=404, detail="Client not found")
+        
+        # Check if link exists
+        existing_link_result = supabase.client.table("client_campaigns").select("*").eq("client_id", client_id).eq("campaign_id", campaign_id).execute()
+        existing_links = existing_link_result.data if hasattr(existing_link_result, 'data') else []
+        
+        if not existing_links:
+            raise HTTPException(status_code=404, detail="Campaign is not linked to this client")
+        
+        # Delete the link
+        result = supabase.client.table("client_campaigns").delete().eq("client_id", client_id).eq("campaign_id", campaign_id).execute()
+        
+        logger.info(f"Unlinked campaign {campaign_id} from client {client_id} by user {current_user.get('email')}")
+        
+        return {
+            "client_id": client_id,
+            "campaign_id": campaign_id,
+            "message": "Campaign unlinked successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error unlinking campaign from client: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/data/clients/{client_id}/keywords")

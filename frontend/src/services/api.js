@@ -303,8 +303,21 @@ export const ga4API = {
 
 // Agency Analytics API endpoints
 export const agencyAnalyticsAPI = {
-  // Get all campaigns
-  getCampaigns: async () => {
+  // Get all campaigns with pagination and search
+  getCampaigns: async (page = 1, pageSize = 50, search = '') => {
+    const params = new URLSearchParams()
+    params.append('page', page)
+    params.append('page_size', pageSize)
+    if (search && search.trim()) {
+      params.append('search', search.trim())
+    }
+    
+    const response = await api.get(`/api/v1/data/agency-analytics/campaigns?${params.toString()}`)
+    return response.data
+  },
+  
+  // Legacy method for backward compatibility
+  getCampaignsLegacy: async () => {
     const response = await api.get('/api/v1/data/agency-analytics/campaigns')
     return response.data
   },
@@ -445,6 +458,22 @@ export const clientAPI = {
   // Get client campaigns
   getClientCampaigns: async (clientId) => {
     const response = await api.get(`/api/v1/data/clients/${clientId}/campaigns`)
+    return response.data
+  },
+
+  // Link a campaign to a client
+  linkClientCampaign: async (clientId, campaignId, isPrimary = false) => {
+    const params = new URLSearchParams()
+    if (isPrimary) {
+      params.append('is_primary', 'true')
+    }
+    const response = await api.post(`/api/v1/data/clients/${clientId}/campaigns/${campaignId}/link?${params.toString()}`)
+    return response.data
+  },
+
+  // Unlink a campaign from a client
+  unlinkClientCampaign: async (clientId, campaignId) => {
+    const response = await api.delete(`/api/v1/data/clients/${clientId}/campaigns/${campaignId}/link`)
     return response.data
   },
 
